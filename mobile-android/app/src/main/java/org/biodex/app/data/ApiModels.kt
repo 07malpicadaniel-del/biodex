@@ -50,6 +50,12 @@ data class CaptureUploadResponse(
     val classification: GeoClassificationDto,
     val identification: VisionIdentificationDto,
     val card: SpeciesCardDto? = null,
+    @SerialName("naturalista_url") val naturalistaUrl: String? = null,
+    @SerialName("image_url") val imageUrl: String? = null,
+    @SerialName("taxonomic_class") val taxonomicClass: String? = null,
+    val habitat: String? = null,
+    @SerialName("iucn_status") val iucnStatus: String? = null,
+    @SerialName("average_mass_grams") val averageMassGrams: Long? = null,
 )
 
 @Serializable
@@ -124,10 +130,43 @@ data class AlmanacItemDto(
     val category: String,
     val summary: String,
     @SerialName("region_hint") val regionHint: String? = null,
-    @SerialName("base_card") val baseCard: SpeciesCardDto,
+    @SerialName("base_card") val baseCard: SpeciesCardDto? = null,
     val discovered: Boolean,
     @SerialName("best_variant") val bestVariant: String? = null,
     @SerialName("capture_count") val captureCount: Long = 0L,
+    @SerialName("image_url") val imageUrl: String? = null,
+    @SerialName("photo_attribution") val photoAttribution: String? = null,
+    @SerialName("naturalista_url") val naturalistaUrl: String = "",
+    @SerialName("wikipedia_url") val wikipediaUrl: String? = null,
+    @SerialName("observations_count") val observationsCount: Long? = null,
+    @SerialName("is_core_almanac") val isCoreAlmanac: Boolean = true,
+    @SerialName("last_captured_at_utc") val lastCapturedAtUtc: String? = null,
+    @SerialName("last_zone_name") val lastZoneName: String? = null,
+)
+
+@Serializable
+data class NaturaListaSpeciesDto(
+    @SerialName("taxon_id") val taxonId: TaxonIdDto,
+    @SerialName("scientific_name") val scientificName: String,
+    @SerialName("common_name") val commonName: String? = null,
+    @SerialName("iconic_taxon_name") val iconicTaxonName: String? = null,
+    @SerialName("iucn_status") val iucnStatus: String = "UNKNOWN",
+    @SerialName("image_url") val imageUrl: String? = null,
+    @SerialName("photo_attribution") val photoAttribution: String? = null,
+    @SerialName("naturalista_url") val naturalistaUrl: String,
+    @SerialName("wikipedia_url") val wikipediaUrl: String? = null,
+    @SerialName("global_observations_count") val globalObservationsCount: Long? = null,
+    @SerialName("local_observations_count") val localObservationsCount: Long? = null,
+    val discovered: Boolean = false,
+    @SerialName("best_variant") val bestVariant: String? = null,
+    @SerialName("in_catalog") val inCatalog: Boolean = false,
+)
+
+@Serializable
+data class NaturaListaDiscoveryResponse(
+    @SerialName("source_url") val sourceUrl: String,
+    @SerialName("query_summary") val querySummary: String,
+    val entries: List<NaturaListaSpeciesDto>,
 )
 
 @Serializable

@@ -208,6 +208,109 @@ pub async fn classify_capture_location(
     })
 }
 
+#[derive(Debug, Deserialize)]
+struct INatObservationsCountResponse {
+    #[serde(default)]
+    total_results: u64,
+}
+
+/// Extends [`classify_capture_location`] with a regional NaturaLista / iNaturalist occurrence
+/// check (`150 km` radius) when a species has no curated polygons in `species_wild_ranges` yet.
+///
+/// Curated sanctuaries, explicit `species_wild_ranges`, and OSM nature reserves always take
+/// precedence. Non-verifiable/captive observations are excluded by the iNaturalist API default.
+pub async fn classify_capture_location_with_naturalista(
+    pool: &PgPool,
+    http: &reqwest::Client,
+    inaturalist_base_url: &str,
+    point: GeoPoint,
+    taxon_id: TaxonId,
+    enable_live_range_fallback: bool,
+) -> Result<GeoResolution, GeoError> {
+    let postgis_res = classify_capture_location(pool, point, taxon_id).await?;
+    if !matches!(postgis_res.classification, GeoClassification::OutOfRange)
+        || !enable_live_range_fallback
+    {
+        return Ok(postgis_res);
+    }
+
+    let TaxonId::INaturalist(inat_id) = taxon_id else {
+        return Ok(postgis_res);
+    };
+
+    let (taxon_source, taxon_external_id) = taxon_db_parts(taxon_id)?;
+    let has_curated_wild_polygons: bool = sqlx::query_scalar(
+        r#"
+        SELECT EXISTS(
+            SELECT 1
+            FROM species_wild_ranges
+            WHERE taxon_source = $1 AND taxon_external_id = $2
+        )
+        "#,
+    )
+    .bind(taxon_source)
+    .bind(taxon_external_id)
+    .fetch_one(pool)
+    .await?;
+
+    if has_curated_wild_polygons {
+        return Ok(postgis_res);
+    }
+
+    let base = inaturalist_base_url.trim_end_matches('/');
+    let url = format!("{base}/observations");
+    let lat_s = point.latitude.to_string();
+    let lng_s = point.longitude.to_string();
+    let taxon_s = inat_id.to_string();
+
+    let present_in_region = match http
+        .get(&url)
+        .query(&[
+            ("taxon_id", taxon_s.as_str()),
+            ("lat", lat_s.as_str()),
+            ("lng", lng_s.as_str()),
+            ("radius", "150"),
+            ("per_page", "1"),
+        ])
+        .send()
+        .await
+    {
+        Ok(resp) if resp.status().is_success() => match resp.text().await {
+            Ok(body) => parse_inaturalist_observation_presence(&body),
+            Err(err) => {
+                tracing::warn!(error = %err, "failed reading NaturaLista range check response");
+                false
+            }
+        },
+        Ok(resp) => {
+            tracing::warn!(status = %resp.status(), "NaturaLista range check returned non-success");
+            false
+        }
+        Err(err) => {
+            tracing::warn!(error = %err, "NaturaLista range check HTTP call failed");
+            false
+        }
+    };
+
+    if present_in_region {
+        Ok(GeoResolution {
+            classification: GeoClassification::Wild,
+            sanctuary_zone_id: None,
+            geo_zone_id: None,
+        })
+    } else {
+        Ok(postgis_res)
+    }
+}
+
+/// Parses an iNaturalist `/v1/observations` JSON payload to detect whether at least one
+/// verifiable observation exists in the queried radius.
+#[must_use]
+pub fn parse_inaturalist_observation_presence(raw_json: &str) -> bool {
+    serde_json::from_str::<INatObservationsCountResponse>(raw_json)
+        .is_ok_and(|parsed| parsed.total_results > 0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -237,5 +340,16 @@ mod tests {
     fn rejects_invalid_taxon_overflow_on_conversion() {
         let err = taxon_db_parts(TaxonId::Gbif(u64::MAX)).unwrap_err();
         assert!(matches!(err, GeoError::TaxonIdOverflow));
+    }
+
+    #[test]
+    fn detects_naturalista_observation_presence_from_json() {
+        assert!(parse_inaturalist_observation_presence(
+            r#"{"total_results":382,"results":[]}"#
+        ));
+        assert!(!parse_inaturalist_observation_presence(
+            r#"{"total_results":0,"results":[]}"#
+        ));
+        assert!(!parse_inaturalist_observation_presence("invalid-json"));
     }
 }

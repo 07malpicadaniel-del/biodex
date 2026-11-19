@@ -48,13 +48,16 @@ Este documento registra los contratos de datos aprobados por el Arquitecto de So
 
 ---
 
-## 4. Almanaque / Diccionario de Fauna Básica (`backend` + `mobile-android`)
+## 4. Colección / Almanaque e Integración NaturaLista (`backend` + `mobile-android`)
 
-- **Visibilidad aprobada:** Todas las especies básicas del Almanaque (24 iniciales en `mods/base-pack/almanac/`) muestran su ficha enciclopédica y estadísticas base desde el inicio, acompañadas de la insignia de estado **`CAPTURADO`** (con variante `SALVAJE` / `SANTUARIO`) o **`POR DESCUBRIR`**.
-- **Persistencia:** Migración `backend/migrations/0002_almanac_metadata.sql` extiende `species_catalog` (`summary`, `category`, `region_hint`, `is_core_almanac`) y se sincroniza al arrancar el backend desde `ModRegistry`.
+- **Visibilidad y Login con Modo Dev:** El cliente muestra pantalla de Login al iniciar; cuando `dev_mode=true`, `GET /api/v1/almanac` desbloquea todas las especies catalogadas para visualizar la colección completa con fotografías y fichas biológicas (sin mostrar estadísticas ni movimientos de combate en la UI hasta Fase 2).
+- **Persistencia:** Migraciones `0002_almanac_metadata.sql` y `0004_species_media_and_naturalista.sql` extienden `species_catalog` (`summary`, `category`, `region_hint`, `is_core_almanac`, `image_url`, `photo_attribution`, `wikipedia_url`, `naturalista_observations_count`), sincronizándose al arrancar el backend desde `ModRegistry` e `INATURALIST_TAXA_URL`.
 - **Endpoints HTTP:**
-  - `GET /api/v1/almanac?q=&category=&habitat=&user_id=`
-  - `GET /api/v1/almanac/{source}/{taxon_id}?user_id=`
+  - `GET /api/v1/almanac?q=&category=&habitat=&user_id=&dev_mode=`
+  - `GET /api/v1/almanac/{source}/{taxon_id}?user_id=&dev_mode=`
+  - `GET /api/v1/almanac/naturalista/search?q=&user_id=&dev_mode=`
+  - `GET /api/v1/almanac/naturalista/nearby?lat=&lng=&radius_km=&user_id=&dev_mode=`
+  - `GET /api/v1/almanac/naturalista/taxon/{id}?user_id=&dev_mode=`
 
 ---
 
@@ -64,4 +67,4 @@ Este documento registra los contratos de datos aprobados por el Arquitecto de So
 - **Umbral de rango mínimo:** Si la visión solo alcanza `genus`, `family` o rango superior, la API rechaza la captura con HTTP `422` (`taxonomic_rank_too_broad`).
 - **Enriquecimiento automático:** Especies fuera del Almanaque base se enriquecen consultando iNaturalist + GBIF (`/species/match` + `/iucnRedListCategory`) + Wikidata (`P2067` masa adulta, `P141` UICN, descripción en español) y se cachean en `species_catalog` (`is_core_almanac = FALSE`).
 - **Modo Mock offline:** `VISION_PROVIDER=mock` usa `MockVisionClient` con respuestas JSON cacheadas para pruebas deterministas sin red.
-- **Ingesta geoespacial Overpass (`geo_zones`):** Migración `backend/migrations/0003_geozones_and_subspecies.sql` y binario `cargo run --bin sync-geozones` importan polígonos reales de zoológicos/acuarios (`sanctuary` → 85%) y reservas naturales (`nature_reserve` → `Wild` 100%) mediante `UPSERT` por `(osm_type, osm_id)`.
+- **Ingesta geoespacial Overpass (`geo_zones`) y respaldo NaturaLista:** Migración `backend/migrations/0003_geozones_and_subspecies.sql` y binario `cargo run --bin sync-geozones` importan polígonos reales de zoológicos/acuarios (`sanctuary`) y reservas naturales (`Wild`). Si una especie `i_naturalist` carece de polígonos propios en `species_wild_ranges` y `ENABLE_NATURALISTA_RANGE_FALLBACK=true`, el backend verifica presencia regional verificable (`radius=150 km`) vía `/observations` para validar capturas de fauna local.

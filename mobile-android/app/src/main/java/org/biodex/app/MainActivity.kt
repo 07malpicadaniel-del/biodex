@@ -33,6 +33,7 @@ import org.biodex.app.ui.BioDexViewModel
 import org.biodex.app.ui.CameraScannerScreen
 import org.biodex.app.ui.CardResultScreen
 import org.biodex.app.ui.FriendsScreen
+import org.biodex.app.ui.LoginScreen
 import org.biodex.app.ui.ProfileScreen
 
 private data class NavTabItem(
@@ -62,17 +63,31 @@ class MainActivity : ComponentActivity() {
                 val detailEntry = uiState.selectedAlmanacEntry
 
                 when {
+                    !uiState.isLoggedIn -> {
+                        LoginScreen(
+                            uiState = uiState,
+                            onExplorerNameChange = vm::updateExplorerNameInput,
+                            onToggleDevMode = vm::setLoginDevModeSelected,
+                            onCustomUrlChange = vm::updateCustomServerUrlInput,
+                            onApplyCustomUrl = vm::applyCustomServerUrl,
+                            onRefreshHealth = vm::refreshConnectionHealthOnly,
+                            onLogin = vm::login,
+                        )
+                    }
+
                     captureResponse != null -> {
                         CardResultScreen(
                             response = captureResponse,
                             capturedJpegBytes = uiState.capturedJpegBytes,
                             onScanAnother = vm::clearResult,
+                            onOpenCollection = vm::goToCollectionFromResult,
                         )
                     }
 
                     detailEntry != null -> {
                         AlmanacDetailScreen(
                             item = detailEntry,
+                            isDevMode = uiState.isDevMode,
                             onBack = vm::closeAlmanacDetail,
                         )
                     }
@@ -121,23 +136,29 @@ class MainActivity : ComponentActivity() {
                                     onLocationPermissionGranted = vm::onLocationPermissionGranted,
                                     onRefreshHealth = vm::refreshBackendHealth,
                                     onCaptureJpeg = vm::submitCameraCapture,
+                                    onCaptureError = vm::reportCaptureError,
                                     onDismissError = vm::clearError,
                                     modifier = contentModifier,
                                 )
 
                                 BioDexTab.Collection -> AlmanacScreen(
                                     uiState = uiState,
+                                    onSelectSubTab = vm::selectCollectionSubTab,
                                     onSearchChange = vm::updateAlmanacSearch,
                                     onSelectCategory = vm::selectAlmanacCategory,
-                                    onToggleOnlyCaptured = vm::toggleAlmanacOnlyCaptured,
+                                    onSelectCaptureFilter = vm::selectAlmanacCaptureFilter,
                                     onRefresh = vm::refreshAlmanac,
                                     onOpenDetail = vm::openAlmanacDetail,
+                                    onNaturaListaQueryChange = vm::updateNaturaListaSearchQuery,
+                                    onSubmitNaturaListaSearch = vm::submitNaturaListaSearch,
+                                    onRefreshNearbyNaturaLista = vm::refreshNearbyNaturaLista,
+                                    onInspectNaturaListaSpecies = vm::inspectNaturaListaSpecies,
                                     modifier = contentModifier,
                                 )
 
                                 BioDexTab.Battle -> BattleScreen(
-                                    uiState = uiState,
                                     onGoToScanner = { vm.selectTab(BioDexTab.Scanner) },
+                                    onGoToCollection = { vm.selectTab(BioDexTab.Collection) },
                                     modifier = contentModifier,
                                 )
 
@@ -152,6 +173,7 @@ class MainActivity : ComponentActivity() {
                                     onApplyCustomUrl = vm::applyCustomServerUrl,
                                     onResetDefaultUrl = { vm.updateCustomServerUrlInput("") },
                                     onRefreshConnection = vm::applyCustomServerUrl,
+                                    onLogout = vm::logout,
                                     modifier = contentModifier,
                                 )
                             }

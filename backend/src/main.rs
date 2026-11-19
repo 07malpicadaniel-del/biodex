@@ -3,7 +3,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use biodex_backend::almanac::sync_almanac_catalog;
+use biodex_backend::almanac::{sync_almanac_catalog, sync_almanac_media};
 use biodex_backend::config::{BackendConfig, VisionProviderKind};
 use biodex_backend::routes::{AppState, router};
 use biodex_backend::vision::{INaturalistVisionClient, MockVisionClient, TaxonomyClassifier};
@@ -44,6 +44,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .user_agent("BioDex/0.1.0 (Open Source Citizen Science)")
         .build()?;
 
+    match sync_almanac_media(&pool, &http, &config.endpoints.inaturalist_base_url).await {
+        Ok(updated) => tracing::info!(updated, "synced NaturaLista imagery metadata"),
+        Err(err) => tracing::warn!(error = %err, "NaturaLista imagery sync skipped/deferred"),
+    }
+
     let vision: Arc<dyn TaxonomyClassifier> = match config.vision_provider {
         VisionProviderKind::INaturalist => Arc::new(INaturalistVisionClient::new(
             http.clone(),
@@ -66,6 +71,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         vision,
         taxonomy_endpoints: config.endpoints,
         max_moire_score: config.max_moire_score,
+        enable_live_range_fallback: config.enable_naturalista_range_fallback,
     };
 
     let listener = TcpListener::bind(&config.bind_addr).await?;

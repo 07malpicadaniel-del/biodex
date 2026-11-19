@@ -12,7 +12,9 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
-use biodex_backend::almanac::{AlmanacItemDto, AlmanacListResponse, sync_almanac_catalog};
+use biodex_backend::almanac::{
+    AlmanacItemDto, AlmanacListResponse, NaturaListaDiscoveryResponse, sync_almanac_catalog,
+};
 use biodex_backend::config::TaxonomyEndpoints;
 use biodex_backend::load_mods_from_dir;
 use biodex_backend::routes::{AppState, CaptureUploadResponse, HealthResponse, router};
@@ -150,6 +152,7 @@ fn build_app(pool: PgPool) -> Router {
         vision,
         taxonomy_endpoints: TaxonomyEndpoints::default(),
         max_moire_score: 0.35,
+        enable_live_range_fallback: false,
     })
 }
 
@@ -484,6 +487,7 @@ async fn almanac_endpoint_lists_24_basic_species_filters_and_tracks_discovery() 
         }),
         taxonomy_endpoints: TaxonomyEndpoints::default(),
         max_moire_score: 0.35,
+        enable_live_range_fallback: false,
     });
 
     // 1. Fresh user sees all 24 entries with 0 discovered.
@@ -712,6 +716,7 @@ async fn subspecies_rollup_enriches_new_species_and_respects_geozones() {
         vision: Arc::new(MockVisionClient::default_cached(0.35)),
         taxonomy_endpoints: endpoints.clone(),
         max_moire_score: 0.35,
+        enable_live_range_fallback: false,
     });
 
     // 1. Inside nature_reserve outside zoo -> mints Wild Panthera tigris (EN -> Epic), records subspecies_label.
@@ -834,6 +839,7 @@ async fn subspecies_rollup_enriches_new_species_and_respects_geozones() {
         )),
         taxonomy_endpoints: endpoints,
         max_moire_score: 0.35,
+        enable_live_range_fallback: false,
     });
     let broad_body = signed_capture_body(
         &format!("test-broad-{}", Uuid::new_v4()),
@@ -866,4 +872,194 @@ async fn subspecies_rollup_enriches_new_species_and_respects_geozones() {
     )
     .unwrap();
     assert!(broad_text.contains("taxonomic_rank_too_broad"));
+}
+
+#[tokio::test]
+async fn dev_mode_unlocks_collection_and_naturalista_endpoints_work() {
+    use axum::routing::get;
+
+    let pool = setup_test_db().await;
+    let mods_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../mods");
+    let mods = Arc::new(load_mods_from_dir(&mods_dir).unwrap());
+    sync_almanac_catalog(&pool, &mods).await.unwrap();
+
+    let fresh_user = format!("dev-preview-{}", Uuid::new_v4());
+
+    let mock_api = Router::new()
+        .route(
+            "/inat/taxa",
+            get(|| async {
+                axum::Json(json!({
+                    "results": [{
+                        "id": 26777,
+                        "name": "Ambystoma mexicanum",
+                        "preferred_common_name": "Ajolote de Xochimilco",
+                        "iconic_taxon_name": "Amphibia",
+                        "observations_count": 3064,
+                        "conservation_status": { "status": "CR" },
+                        "default_photo": {
+                            "medium_url": "https://example.org/axolotl-med.jpg",
+                            "attribution": "(c) Ejemplo"
+                        },
+                        "wikipedia_url": "https://es.wikipedia.org/wiki/Ambystoma_mexicanum"
+                    }]
+                }))
+            }),
+        )
+        .route(
+            "/inat/observations/species_counts",
+            get(|| async {
+                axum::Json(json!({
+                    "results": [{
+                        "count": 42,
+                        "taxon": {
+                            "id": 35342,
+                            "name": "Iguana iguana",
+                            "preferred_common_name": "Iguana Verde",
+                            "iconic_taxon_name": "Reptilia",
+                            "observations_count": 90000
+                        }
+                    }]
+                }))
+            }),
+        )
+        .route(
+            "/inat/observations",
+            get(
+                |axum::extract::RawQuery(q): axum::extract::RawQuery| async move {
+                    if q.unwrap_or_default().contains("taxon_id=35342") {
+                        axum::Json(json!({ "total_results": 924, "results": [] }))
+                    } else {
+                        axum::Json(json!({ "total_results": 0, "results": [] }))
+                    }
+                },
+            ),
+        );
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let mock_addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        let _ = axum::serve(listener, mock_api).await;
+    });
+
+    let app = router(AppState {
+        db: pool,
+        http: reqwest::Client::new(),
+        mods,
+        vision: Arc::new(MockVisionClassifier {
+            taxon_id: TaxonId::INaturalist(35_342),
+            scientific_name: "Iguana iguana",
+        }),
+        taxonomy_endpoints: TaxonomyEndpoints {
+            inaturalist_base_url: format!("http://{mock_addr}/inat"),
+            gbif_base_url: format!("http://{mock_addr}/gbif"),
+            wikidata_api_url: format!("http://{mock_addr}/wikidata"),
+        },
+        max_moire_score: 0.35,
+        enable_live_range_fallback: true,
+    });
+
+    // 1. Dev Mode unlocks every species for a fresh zero-capture user.
+    let dev_resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!(
+                    "/api/v1/almanac?user_id={fresh_user}&dev_mode=true"
+                ))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(dev_resp.status(), StatusCode::OK);
+    let dev_bytes = axum::body::to_bytes(dev_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let dev_list: AlmanacListResponse = serde_json::from_slice(&dev_bytes).unwrap();
+    assert!(dev_list.total_species >= 24);
+    assert_eq!(dev_list.discovered_count, dev_list.total_species);
+    assert!(dev_list.entries.iter().all(|e| {
+        e.discovered && e.capture_count >= 1 && e.naturalista_url.starts_with("https://")
+    }));
+
+    // 2. NaturaLista search & nearby endpoints return structured fauna results.
+    let search_resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!(
+                    "/api/v1/almanac/naturalista/search?q=ajolote&user_id={fresh_user}"
+                ))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(search_resp.status(), StatusCode::OK);
+    let search_bytes = axum::body::to_bytes(search_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let search: NaturaListaDiscoveryResponse = serde_json::from_slice(&search_bytes).unwrap();
+    assert_eq!(search.entries.len(), 1);
+    assert!(search.entries[0].in_catalog);
+    assert_eq!(
+        search.entries[0].naturalista_url,
+        "https://www.naturalista.mx/taxa/26777"
+    );
+
+    let nearby_resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!(
+                    "/api/v1/almanac/naturalista/nearby?lat=19.19&lng=-96.14&radius_km=20&user_id={fresh_user}&dev_mode=true"
+                ))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(nearby_resp.status(), StatusCode::OK);
+    let nearby_bytes = axum::body::to_bytes(nearby_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let nearby: NaturaListaDiscoveryResponse = serde_json::from_slice(&nearby_bytes).unwrap();
+    assert_eq!(nearby.entries.len(), 1);
+    assert_eq!(nearby.entries[0].local_observations_count, Some(42));
+    assert!(nearby.entries[0].discovered);
+
+    // 3. Regional NaturaLista presence fallback mints Wild for Iguana iguana outside explicit polygons.
+    let cap_body = signed_capture_body(
+        &format!("test-naturalista-wild-{}", Uuid::new_v4()),
+        CaptureSource::CameraXLive,
+        GeoPoint {
+            latitude: 19.1883,
+            longitude: -96.1463,
+            accuracy_meters: 8.0,
+        },
+        false,
+        false,
+    );
+    let cap_resp = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/captures")
+                .header("content-type", "application/json")
+                .body(Body::from(cap_body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(cap_resp.status(), StatusCode::CREATED);
+    let cap_bytes = axum::body::to_bytes(cap_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let minted: CaptureUploadResponse = serde_json::from_slice(&cap_bytes).unwrap();
+    assert_eq!(minted.status, "minted");
+    assert_eq!(
+        minted.naturalista_url.as_deref(),
+        Some("https://www.naturalista.mx/taxa/35342")
+    );
 }

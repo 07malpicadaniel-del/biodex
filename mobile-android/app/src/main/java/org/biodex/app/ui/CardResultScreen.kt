@@ -5,7 +5,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,13 +15,21 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,24 +40,32 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.biodex.app.data.CaptureUploadResponse
-import org.biodex.app.data.SpeciesCardDto
+import kotlin.math.roundToInt
 
 @Composable
 fun CardResultScreen(
     response: CaptureUploadResponse,
     capturedJpegBytes: ByteArray?,
     onScanAnother: () -> Unit,
+    onOpenCollection: () -> Unit,
 ) {
-    val card = response.card
-    val borderColor = if (card != null) {
-        BioDexColors.rarityColor(card.rarity)
-    } else {
-        BioDexColors.Warning
+    val context = LocalContext.current
+    val isMinted = response.card != null && response.status == "minted"
+    val isSanctuary = response.classification.classification == "sanctuary"
+    val borderColor = when {
+        !isMinted -> BioDexColors.Warning
+        isSanctuary -> BioDexColors.Warning
+        else -> BioDexColors.Primary
     }
+    val naturalistaUrl = BioDexFormatters.naturalistaUrl(
+        taxonId = response.identification.taxonId,
+        rawUrl = response.naturalistaUrl,
+    )
 
     Column(
         modifier = Modifier
@@ -63,16 +78,44 @@ fun CardResultScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        if (card != null) {
-            MintedSpeciesCard(
-                card = card,
-                zoneName = response.classification.zoneName,
-                subspeciesLabel = response.identification.subspeciesLabel,
+        if (isMinted) {
+            MintedDiscoveryCard(
+                response = response,
                 capturedJpegBytes = capturedJpegBytes,
                 borderColor = borderColor,
+                naturalistaUrl = naturalistaUrl,
+                onOpenNaturaLista = { BioDexFormatters.openExternalUrl(context, naturalistaUrl) },
             )
         } else {
-            DiscardedCaptureNotice(response = response)
+            DiscardedCaptureNotice(
+                response = response,
+                capturedJpegBytes = capturedJpegBytes,
+                naturalistaUrl = naturalistaUrl,
+                onOpenNaturaLista = { BioDexFormatters.openExternalUrl(context, naturalistaUrl) },
+            )
+        }
+
+        if (isMinted) {
+            OutlinedButton(
+                onClick = onOpenCollection,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                shape = RoundedCornerShape(14.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.MenuBook,
+                    contentDescription = null,
+                    tint = BioDexColors.Primary,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Ver en Colección",
+                    color = BioDexColors.TextPrimary,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
         }
 
         Button(
@@ -83,6 +126,13 @@ fun CardResultScreen(
             shape = RoundedCornerShape(14.dp),
             colors = ButtonDefaults.buttonColors(containerColor = BioDexColors.Primary),
         ) {
+            Icon(
+                imageVector = Icons.Default.CameraAlt,
+                contentDescription = null,
+                tint = BioDexColors.OnPrimary,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "Nueva Captura en Vivo",
                 color = BioDexColors.OnPrimary,
@@ -93,13 +143,17 @@ fun CardResultScreen(
 }
 
 @Composable
-private fun MintedSpeciesCard(
-    card: SpeciesCardDto,
-    zoneName: String?,
-    subspeciesLabel: String?,
+private fun MintedDiscoveryCard(
+    response: CaptureUploadResponse,
     capturedJpegBytes: ByteArray?,
     borderColor: Color,
+    naturalistaUrl: String,
+    onOpenNaturaLista: () -> Unit,
 ) {
+    val ident = response.identification
+    val isSanctuary = response.classification.classification == "sanctuary"
+    val confidencePct = (ident.confidence * 100f).roundToInt().coerceIn(0, 100)
+
     Surface(
         color = BioDexColors.Surface,
         shape = RoundedCornerShape(22.dp),
@@ -108,48 +162,45 @@ private fun MintedSpeciesCard(
             .border(2.5.dp, borderColor, RoundedCornerShape(22.dp)),
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = card.displayName,
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = BioDexColors.TextPrimary,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text(
-                        text = card.scientificName,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontStyle = FontStyle.Italic,
-                        color = BioDexColors.TextSecondary,
-                    )
-                    if (!subspeciesLabel.isNullOrBlank()) {
-                        Text(
-                            text = "Subespecie observada: $subspeciesLabel",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = BioDexColors.Primary,
-                        )
-                    }
-                }
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = null,
+                    tint = borderColor,
+                    modifier = Modifier.size(18.dp),
+                )
+                Text(
+                    text = "¡Especie Registrada en tu Colección!",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = borderColor,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
 
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(BioDexColors.Primary),
-                    contentAlignment = Alignment.Center,
-                ) {
+            Column {
+                Text(
+                    text = ident.commonName ?: ident.scientificName,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = BioDexColors.TextPrimary,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = ident.scientificName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontStyle = FontStyle.Italic,
+                    color = BioDexColors.TextSecondary,
+                )
+                if (!ident.subspeciesLabel.isNullOrBlank()) {
                     Text(
-                        text = card.deployCost.toString(),
-                        style = MaterialTheme.typography.titleLarge,
-                        color = BioDexColors.OnPrimary,
-                        fontWeight = FontWeight.ExtraBold,
+                        text = "Subespecie detectada (rollup aplicado): ${ident.subspeciesLabel}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = BioDexColors.Primary,
                     )
                 }
             }
@@ -163,112 +214,115 @@ private fun MintedSpeciesCard(
             if (bitmap != null) {
                 Image(
                     bitmap = bitmap,
-                    contentDescription = card.displayName,
+                    contentDescription = ident.commonName ?: ident.scientificName,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(220.dp)
+                        .height(230.dp)
                         .clip(RoundedCornerShape(14.dp)),
                 )
             }
 
-            // Rarity + Wild/Sanctuary Badges
+            // Capture Variant + Conservation + Confidence (NO combat info)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                BadgeChip(
-                    text = card.rarity.uppercase(),
-                    color = borderColor,
-                )
-                val isSanctuary = card.variant == "sanctuary"
-                BadgeChip(
-                    text = if (isSanctuary) "SANTUARIO · 85%" else "SALVAJE · 100%",
+                ResultBadgeChip(
+                    text = if (isSanctuary) "SANTUARIO" else "SALVAJE",
                     color = if (isSanctuary) BioDexColors.Warning else BioDexColors.Primary,
                 )
-                BadgeChip(
-                    text = card.affinity.uppercase(),
-                    color = BioDexColors.TextSecondary,
+                ResultBadgeChip(
+                    text = "$confidencePct% confianza",
+                    color = BioDexColors.Primary,
                 )
+                response.iucnStatus?.let { iucn ->
+                    ResultBadgeChip(
+                        text = BioDexFormatters.iucnShortCode(iucn),
+                        color = BioDexColors.TextSecondary,
+                    )
+                }
             }
 
-            if (zoneName != null) {
+            if (response.classification.zoneName != null) {
                 Text(
-                    text = "Zona verificada: $zoneName",
+                    text = "Zona verificada: ${response.classification.zoneName}",
                     style = MaterialTheme.typography.bodySmall,
                     color = BioDexColors.Warning,
                 )
             }
 
-            // 4-Stat Grid
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(BioDexColors.SurfaceElevated)
-                    .padding(vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
+            Surface(
+                color = BioDexColors.SurfaceElevated,
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                StatCell("HP", card.stats.hp)
-                StatCell("ATK", card.stats.attack)
-                StatCell("DEF", card.stats.defense)
-                StatCell("SPD", card.stats.speed)
-            }
-
-            // Moves
-            Text(
-                text = "Movimientos",
-                style = MaterialTheme.typography.titleSmall,
-                color = BioDexColors.TextSecondary,
-                fontWeight = FontWeight.SemiBold,
-            )
-            card.moves.forEach { move ->
-                Surface(
-                    color = BioDexColors.SurfaceElevated,
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth(),
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = move.name,
-                                style = MaterialTheme.typography.titleSmall,
-                                color = BioDexColors.TextPrimary,
-                                fontWeight = FontWeight.Bold,
-                            )
-                            Text(
-                                text = "Energía: ${move.energyCost}" +
-                                    (move.tag?.let { " · #$it" } ?: ""),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = BioDexColors.TextSecondary,
-                            )
-                        }
-                        Text(
-                            text = "${move.power} PWR",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = BioDexColors.Primary,
-                            fontWeight = FontWeight.ExtraBold,
-                        )
+                    response.taxonomicClass?.let {
+                        ResultMetaRow("Clase taxonómica", it)
                     }
+                    response.habitat?.let {
+                        ResultMetaRow("Hábitat", BioDexFormatters.habitatLabelEs(it))
+                    }
+                    response.averageMassGrams?.let {
+                        ResultMetaRow("Masa promedio", BioDexFormatters.formatMass(it))
+                    }
+                    ResultMetaRow("Taxon ID", "${ident.taxonId.source}:${ident.taxonId.id}")
                 }
             }
 
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = "Pack aplicado: ${card.appliedPack} · Firma hardware P-256 verificada",
-                style = MaterialTheme.typography.labelSmall,
-                color = BioDexColors.TextSecondary,
-            )
+            Button(
+                onClick = onOpenNaturaLista,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = BioDexColors.SurfaceElevated),
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                    contentDescription = null,
+                    tint = BioDexColors.Primary,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Ver en NaturaLista ($naturalistaUrl)",
+                    color = BioDexColors.Primary,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                )
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Lock,
+                    contentDescription = null,
+                    tint = BioDexColors.Primary,
+                    modifier = Modifier.size(14.dp),
+                )
+                Text(
+                    text = "Firma hardware ECDSA P-256 + SHA-256 verificada en servidor",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = BioDexColors.TextSecondary,
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun DiscardedCaptureNotice(response: CaptureUploadResponse) {
+private fun DiscardedCaptureNotice(
+    response: CaptureUploadResponse,
+    capturedJpegBytes: ByteArray?,
+    naturalistaUrl: String,
+    onOpenNaturaLista: () -> Unit,
+) {
+    val confidencePct = (response.identification.confidence * 100f).roundToInt().coerceIn(0, 100)
+
     Surface(
         color = BioDexColors.Surface,
         shape = RoundedCornerShape(20.dp),
@@ -281,27 +335,62 @@ private fun DiscardedCaptureNotice(response: CaptureUploadResponse) {
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
-                text = "Captura Fuera de Rango",
+                text = "Captura Fuera de Rango Natural",
                 style = MaterialTheme.typography.headlineSmall,
                 color = BioDexColors.Warning,
                 fontWeight = FontWeight.Bold,
             )
+
+            val bitmap = remember(capturedJpegBytes) {
+                capturedJpegBytes?.let { bytes ->
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+                }
+            }
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap,
+                    contentDescription = response.identification.scientificName,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(170.dp)
+                        .clip(RoundedCornerShape(12.dp)),
+                )
+            }
+
             Text(
-                text = "Especie: ${response.identification.scientificName}",
+                text = "Detectado: ${response.identification.commonName ?: response.identification.scientificName} (${response.identification.scientificName}) · $confidencePct%",
                 style = MaterialTheme.typography.bodyMedium,
                 color = BioDexColors.TextPrimary,
+                fontWeight = FontWeight.SemiBold,
             )
             Text(
-                text = "La coordenada GPS no coincide con un rango natural registrado ni con un santuario verificado en PostGIS.",
+                text = "La coordenada GPS no coincide con un santuario registrado en PostGIS ni con registros naturales verificados en NaturaLista para esta zona.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = BioDexColors.TextSecondary,
             )
+            OutlinedButton(
+                onClick = onOpenNaturaLista,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                    contentDescription = null,
+                    tint = BioDexColors.Primary,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Consultar distribución en NaturaLista",
+                    color = BioDexColors.TextPrimary,
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun BadgeChip(text: String, color: Color) {
+private fun ResultBadgeChip(text: String, color: Color) {
     Surface(
         color = color.copy(alpha = 0.16f),
         shape = RoundedCornerShape(8.dp),
@@ -317,18 +406,21 @@ private fun BadgeChip(text: String, color: Color) {
 }
 
 @Composable
-private fun StatCell(label: String, value: Int) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+private fun ResultMetaRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.labelSmall,
+            style = MaterialTheme.typography.labelMedium,
             color = BioDexColors.TextSecondary,
         )
         Text(
-            text = value.toString(),
-            style = MaterialTheme.typography.titleLarge,
+            text = value,
+            style = MaterialTheme.typography.labelMedium,
             color = BioDexColors.TextPrimary,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.SemiBold,
         )
     }
 }

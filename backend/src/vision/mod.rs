@@ -122,6 +122,14 @@ pub enum VisionError {
     /// Vision model returned no candidates or confidence fell below threshold.
     #[error("no species detected with sufficient confidence; try a clearer photo")]
     NoSpeciesDetected,
+    /// Vision detected flora, fungi, or human instead of wildlife/fauna.
+    #[error("only animals can be collected in BioDex (detected '{detected_name}' in {category})")]
+    NonFaunaDetected {
+        /// Scientific or common name of the non-fauna detection.
+        detected_name: String,
+        /// Iconic group returned by iNaturalist (e.g., `Plantae`, `Fungi`).
+        category: String,
+    },
     /// Vision confidence only reached genus, family, or higher taxonomic rank.
     #[error(
         "identification for '{detected_name}' only reached rank '{detected_rank}'; take a closer or sharper photo to reach species level"
@@ -365,34 +373,75 @@ async fn resolve_cv_payload(
     }
 }
 
-/// Parses the top iNaturalist CV result and validates the minimum confidence threshold.
+/// Builds the canonical NaturaLista Mexico (or GBIF) web URL for a normalized taxon.
+#[must_use]
+pub fn naturalista_url_for_taxon(taxon_id: TaxonId) -> String {
+    match taxon_id {
+        TaxonId::INaturalist(id) => format!("https://www.naturalista.mx/taxa/{id}"),
+        TaxonId::Gbif(id) => format!("https://www.gbif.org/species/{id}"),
+    }
+}
+
+/// Parses the top fauna candidate from an iNaturalist CV result and validates confidence (`0..100%`).
 pub fn parse_inaturalist_cv_candidate(
     raw_json: &str,
     min_confidence: f32,
 ) -> Result<ParsedCvCandidate, VisionError> {
     let parsed: INatCvResponse =
         serde_json::from_str(raw_json).map_err(|err| VisionError::Upstream(err.to_string()))?;
-    let top = parsed
-        .results
-        .into_iter()
-        .next()
-        .ok_or(VisionError::NoSpeciesDetected)?;
-
-    let raw_score = top.combined_score.or(top.vision_score).unwrap_or(0.0);
-    let confidence = if raw_score > 1.0 {
-        (raw_score / 100.0).clamp(0.0, 1.0)
-    } else {
-        raw_score.clamp(0.0, 1.0)
-    };
-
-    if confidence < min_confidence {
+    if parsed.results.is_empty() {
         return Err(VisionError::NoSpeciesDetected);
     }
 
-    Ok(ParsedCvCandidate {
-        confidence,
-        taxon: top.taxon,
-    })
+    let mut top_non_fauna: Option<(String, String)> = None;
+    for result in parsed.results {
+        let raw_score = result.combined_score.or(result.vision_score).unwrap_or(0.0);
+        // iNaturalist Computer Vision `score_image` always reports percentage scores in `0.0..=100.0`.
+        let confidence = (raw_score / 100.0).clamp(0.0, 1.0);
+        if confidence < min_confidence {
+            continue;
+        }
+        if is_non_fauna_taxon(&result.taxon) {
+            if top_non_fauna.is_none() {
+                let category = result
+                    .taxon
+                    .iconic_taxon_name
+                    .clone()
+                    .unwrap_or_else(|| "NonAnimalia".to_string());
+                top_non_fauna = Some((result.taxon.name.clone(), category));
+            }
+            continue;
+        }
+
+        return Ok(ParsedCvCandidate {
+            confidence,
+            taxon: result.taxon,
+        });
+    }
+
+    if let Some((detected_name, category)) = top_non_fauna {
+        return Err(VisionError::NonFaunaDetected {
+            detected_name,
+            category,
+        });
+    }
+
+    Err(VisionError::NoSpeciesDetected)
+}
+
+pub(crate) fn is_non_fauna_taxon(taxon: &INatTaxon) -> bool {
+    if taxon.id == 43_584 || taxon.name.trim().eq_ignore_ascii_case("Homo sapiens") {
+        return true;
+    }
+    matches!(
+        taxon
+            .iconic_taxon_name
+            .as_deref()
+            .map(str::trim)
+            .map(str::to_ascii_lowercase)
+            .as_deref(),
+        Some("plantae" | "fungi" | "chromista" | "protozoa" | "bacteria" | "viruses")
+    )
 }
 
 /// Normalizes a candidate using embedded `ancestors` if available; rejects broad ranks.
@@ -482,6 +531,28 @@ fn find_species_ancestor(ancestors: &[INatAncestor]) -> Option<&INatAncestor> {
     })
 }
 
+/// Public photo and encyclopedia metadata fetched from NaturaLista / iNaturalist.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct TaxonMediaMeta {
+    /// Medium or square wildlife reference photograph URL.
+    pub image_url: Option<String>,
+    /// Photographer / license attribution string.
+    pub photo_attribution: Option<String>,
+    /// Spanish or canonical Wikipedia encyclopedia URL.
+    pub wikipedia_url: Option<String>,
+    /// Total verifiable community observations logged in NaturaLista / iNaturalist.
+    pub observations_count: Option<i64>,
+}
+
+/// Complete resolved species profile including traits and optional NaturaLista media.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedSpeciesProfile {
+    /// Normalized biological traits used for catalog and procedural generation.
+    pub traits: BiologicalTraits,
+    /// Optional photograph & NaturaLista metadata.
+    pub media: TaxonMediaMeta,
+}
+
 /// Resolves full [`BiologicalTraits`] from `species_catalog` or enriches via iNaturalist + GBIF + Wikidata.
 pub async fn resolve_biological_traits(
     pool: &PgPool,
@@ -489,22 +560,48 @@ pub async fn resolve_biological_traits(
     ident: &VisionIdentification,
     endpoints: &TaxonomyEndpoints,
 ) -> Result<BiologicalTraits, VisionError> {
-    if let Some(cached) = fetch_cached_traits(pool, ident.taxon_id, &ident.scientific_name).await? {
-        return Ok(cached);
+    resolve_species_profile(pool, http, ident, endpoints)
+        .await
+        .map(|profile| profile.traits)
+}
+
+/// Resolves [`BiologicalTraits`] and caches NaturaLista photograph/Wikipedia metadata.
+pub async fn resolve_species_profile(
+    pool: &PgPool,
+    http: &reqwest::Client,
+    ident: &VisionIdentification,
+    endpoints: &TaxonomyEndpoints,
+) -> Result<ResolvedSpeciesProfile, VisionError> {
+    if let Some(cached) = fetch_cached_profile(pool, ident.taxon_id, &ident.scientific_name).await?
+    {
+        let mut media = cached.media;
+        if media.image_url.is_none()
+            && let TaxonId::INaturalist(id) = ident.taxon_id
+            && let Ok(fresh) =
+                fetch_inaturalist_taxon_with_media(http, &endpoints.inaturalist_base_url, id).await
+        {
+            media = fresh.1;
+            let _ = backfill_taxon_media(pool, ident.taxon_id, &media).await;
+        }
+        return Ok(ResolvedSpeciesProfile {
+            traits: cached.traits,
+            media,
+        });
     }
 
-    let (mut traits, mut summary) = match ident.taxon_id {
+    let (mut traits, mut summary, media) = match ident.taxon_id {
         TaxonId::INaturalist(id) => {
-            let mut base =
-                fetch_inaturalist_taxon(http, &endpoints.inaturalist_base_url, id).await?;
+            let (mut base, media) =
+                fetch_inaturalist_taxon_with_media(http, &endpoints.inaturalist_base_url, id)
+                    .await?;
             if base.common_name.is_none() {
                 base.common_name = ident.common_name.clone();
             }
-            (base, String::new())
+            (base, String::new(), media)
         }
         TaxonId::Gbif(key) => {
             let base = fetch_gbif_taxon(http, &endpoints.gbif_base_url, key).await?;
-            (base, String::new())
+            (base, String::new(), TaxonMediaMeta::default())
         }
     };
 
@@ -572,22 +669,23 @@ pub async fn resolve_biological_traits(
     }
 
     let category = infer_almanac_category(&traits.taxonomic_class, traits.habitat);
-    cache_traits(pool, &traits, &summary, category).await?;
-    Ok(traits)
+    cache_traits(pool, &traits, &summary, category, &media).await?;
+    Ok(ResolvedSpeciesProfile { traits, media })
 }
 
-async fn fetch_cached_traits(
+async fn fetch_cached_profile(
     pool: &PgPool,
     taxon_id: TaxonId,
     scientific_name: &str,
-) -> Result<Option<BiologicalTraits>, VisionError> {
+) -> Result<Option<ResolvedSpeciesProfile>, VisionError> {
     let (taxon_source, taxon_external_id) =
         taxon_db_parts(taxon_id).map_err(|_| VisionError::UnknownTaxon(taxon_id))?;
 
     let row = sqlx::query(
         r#"
         SELECT taxon_source, taxon_external_id, scientific_name, common_name, phylum, taxonomic_class,
-               average_mass_grams, diet, habitat, defenses, iucn_status
+               average_mass_grams, diet, habitat, defenses, iucn_status,
+               image_url, photo_attribution, wikipedia_url, naturalista_observations_count
         FROM species_catalog
         WHERE (taxon_source = $1 AND taxon_external_id = $2)
            OR ($3 <> '' AND LOWER(scientific_name) = LOWER($3))
@@ -617,18 +715,56 @@ async fn fetch_cached_traits(
     let defenses: BTreeSet<DefenseTrait> =
         serde_json::from_value(defenses_json).unwrap_or_default();
 
-    Ok(Some(BiologicalTraits {
-        taxon_id,
-        scientific_name: row.try_get("scientific_name")?,
-        common_name: row.try_get("common_name")?,
-        phylum: row.try_get("phylum")?,
-        taxonomic_class: row.try_get("taxonomic_class")?,
-        average_mass_grams: u64::try_from(mass_i64.max(1)).unwrap_or(1),
-        diet,
-        habitat,
-        defenses,
-        iucn_status,
+    Ok(Some(ResolvedSpeciesProfile {
+        traits: BiologicalTraits {
+            taxon_id,
+            scientific_name: row.try_get("scientific_name")?,
+            common_name: row.try_get("common_name")?,
+            phylum: row.try_get("phylum")?,
+            taxonomic_class: row.try_get("taxonomic_class")?,
+            average_mass_grams: u64::try_from(mass_i64.max(1)).unwrap_or(1),
+            diet,
+            habitat,
+            defenses,
+            iucn_status,
+        },
+        media: TaxonMediaMeta {
+            image_url: row.try_get("image_url")?,
+            photo_attribution: row.try_get("photo_attribution")?,
+            wikipedia_url: row.try_get("wikipedia_url")?,
+            observations_count: row.try_get("naturalista_observations_count")?,
+        },
     }))
+}
+
+async fn backfill_taxon_media(
+    pool: &PgPool,
+    taxon_id: TaxonId,
+    media: &TaxonMediaMeta,
+) -> Result<(), VisionError> {
+    let (taxon_source, taxon_external_id) =
+        taxon_db_parts(taxon_id).map_err(|_| VisionError::UnknownTaxon(taxon_id))?;
+
+    sqlx::query(
+        r#"
+        UPDATE species_catalog
+        SET image_url = COALESCE(image_url, $3),
+            photo_attribution = COALESCE(photo_attribution, $4),
+            wikipedia_url = COALESCE(wikipedia_url, $5),
+            naturalista_observations_count = COALESCE($6, naturalista_observations_count)
+        WHERE taxon_source = $1 AND taxon_external_id = $2
+        "#,
+    )
+    .bind(taxon_source)
+    .bind(taxon_external_id)
+    .bind(&media.image_url)
+    .bind(&media.photo_attribution)
+    .bind(&media.wikipedia_url)
+    .bind(media.observations_count)
+    .execute(pool)
+    .await?;
+
+    Ok(())
 }
 
 async fn cache_traits(
@@ -636,6 +772,7 @@ async fn cache_traits(
     traits: &BiologicalTraits,
     summary: &str,
     category: &str,
+    media: &TaxonMediaMeta,
 ) -> Result<(), VisionError> {
     let (taxon_source, taxon_external_id) =
         taxon_db_parts(traits.taxon_id).map_err(|_| VisionError::UnknownTaxon(traits.taxon_id))?;
@@ -652,10 +789,15 @@ async fn cache_traits(
         INSERT INTO species_catalog (
             taxon_source, taxon_external_id, scientific_name, common_name,
             phylum, taxonomic_class, average_mass_grams, diet, habitat, defenses,
-            iucn_status, summary, category, is_core_almanac
+            iucn_status, summary, category, is_core_almanac,
+            image_url, photo_attribution, wikipedia_url, naturalista_observations_count
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, FALSE)
-        ON CONFLICT (taxon_source, taxon_external_id) DO NOTHING
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, FALSE, $14, $15, $16, $17)
+        ON CONFLICT (taxon_source, taxon_external_id) DO UPDATE SET
+            image_url = COALESCE(species_catalog.image_url, EXCLUDED.image_url),
+            photo_attribution = COALESCE(species_catalog.photo_attribution, EXCLUDED.photo_attribution),
+            wikipedia_url = COALESCE(species_catalog.wikipedia_url, EXCLUDED.wikipedia_url),
+            naturalista_observations_count = COALESCE(EXCLUDED.naturalista_observations_count, species_catalog.naturalista_observations_count)
         "#,
     )
     .bind(taxon_source)
@@ -671,17 +813,21 @@ async fn cache_traits(
     .bind(iucn)
     .bind(summary)
     .bind(category)
+    .bind(&media.image_url)
+    .bind(&media.photo_attribution)
+    .bind(&media.wikipedia_url)
+    .bind(media.observations_count)
     .execute(pool)
     .await?;
 
     Ok(())
 }
 
-async fn fetch_inaturalist_taxon(
+async fn fetch_inaturalist_taxon_with_media(
     http: &reqwest::Client,
     inaturalist_base_url: &str,
     taxon_id: u64,
-) -> Result<BiologicalTraits, VisionError> {
+) -> Result<(BiologicalTraits, TaxonMediaMeta), VisionError> {
     let url = format!("{inaturalist_base_url}/taxa/{taxon_id}?locale=es");
     let resp = http
         .get(url)
@@ -703,7 +849,7 @@ async fn fetch_inaturalist_taxon(
         .text()
         .await
         .map_err(|err| VisionError::Upstream(err.to_string()))?;
-    parse_inaturalist_taxon_response(&body, TaxonId::INaturalist(taxon_id))
+    parse_inaturalist_taxon_response_with_media(&body, TaxonId::INaturalist(taxon_id))
 }
 
 async fn fetch_gbif_taxon(
@@ -855,37 +1001,48 @@ struct INatCvResult {
     taxon: INatTaxon,
 }
 
-#[derive(Debug, Deserialize)]
-struct INatTaxaResponse {
+#[derive(Debug, Clone, Deserialize)]
+pub(crate) struct INatTaxaResponse {
     #[serde(default)]
-    results: Vec<INatTaxon>,
+    pub(crate) results: Vec<INatTaxon>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
-struct INatTaxon {
-    id: u64,
-    name: String,
-    rank: Option<String>,
-    rank_level: Option<u32>,
-    preferred_common_name: Option<String>,
-    iconic_taxon_name: Option<String>,
-    conservation_status: Option<INatConservationStatus>,
+pub(crate) struct INatDefaultPhoto {
+    pub(crate) square_url: Option<String>,
+    pub(crate) medium_url: Option<String>,
+    pub(crate) url: Option<String>,
+    pub(crate) attribution: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub(crate) struct INatTaxon {
+    pub(crate) id: u64,
+    pub(crate) name: String,
+    pub(crate) rank: Option<String>,
+    pub(crate) rank_level: Option<u32>,
+    pub(crate) preferred_common_name: Option<String>,
+    pub(crate) iconic_taxon_name: Option<String>,
+    pub(crate) conservation_status: Option<INatConservationStatus>,
+    pub(crate) default_photo: Option<INatDefaultPhoto>,
+    pub(crate) wikipedia_url: Option<String>,
+    pub(crate) observations_count: Option<i64>,
     #[serde(default)]
-    ancestors: Vec<INatAncestor>,
+    pub(crate) ancestors: Vec<INatAncestor>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
-struct INatAncestor {
-    id: u64,
-    name: String,
-    rank: Option<String>,
-    rank_level: Option<u32>,
-    preferred_common_name: Option<String>,
+pub(crate) struct INatAncestor {
+    pub(crate) id: u64,
+    pub(crate) name: String,
+    pub(crate) rank: Option<String>,
+    pub(crate) rank_level: Option<u32>,
+    pub(crate) preferred_common_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
-struct INatConservationStatus {
-    status: Option<String>,
+pub(crate) struct INatConservationStatus {
+    pub(crate) status: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -966,6 +1123,33 @@ pub fn parse_inaturalist_taxon_response(
     raw_json: &str,
     taxon_id: TaxonId,
 ) -> Result<BiologicalTraits, VisionError> {
+    parse_inaturalist_taxon_response_with_media(raw_json, taxon_id).map(|(traits, _)| traits)
+}
+
+pub(crate) fn extract_inat_media(taxon: &INatTaxon) -> TaxonMediaMeta {
+    let image_url = taxon.default_photo.as_ref().and_then(|p| {
+        clean_opt(p.medium_url.as_deref())
+            .or_else(|| clean_opt(p.square_url.as_deref()))
+            .or_else(|| clean_opt(p.url.as_deref()))
+    });
+    let photo_attribution = taxon
+        .default_photo
+        .as_ref()
+        .and_then(|p| clean_opt(p.attribution.as_deref()));
+
+    TaxonMediaMeta {
+        image_url,
+        photo_attribution,
+        wikipedia_url: clean_opt(taxon.wikipedia_url.as_deref()),
+        observations_count: taxon.observations_count.filter(|&c| c >= 0),
+    }
+}
+
+/// Parses an iNaturalist `/v1/taxa/{id}` JSON payload into [`BiologicalTraits`] + [`TaxonMediaMeta`].
+pub fn parse_inaturalist_taxon_response_with_media(
+    raw_json: &str,
+    taxon_id: TaxonId,
+) -> Result<(BiologicalTraits, TaxonMediaMeta), VisionError> {
     let parsed: INatTaxaResponse =
         serde_json::from_str(raw_json).map_err(|err| VisionError::Upstream(err.to_string()))?;
     let taxon = parsed
@@ -974,6 +1158,7 @@ pub fn parse_inaturalist_taxon_response(
         .next()
         .ok_or(VisionError::UnknownTaxon(taxon_id))?;
 
+    let media = extract_inat_media(&taxon);
     let iconic = taxon.iconic_taxon_name.as_deref().unwrap_or("Animalia");
     let inferred = infer_defaults_from_taxonomy(iconic, iconic, None, None);
     let iucn_status = taxon
@@ -982,7 +1167,7 @@ pub fn parse_inaturalist_taxon_response(
         .map(|code| parse_iucn(&code))
         .unwrap_or(IucnStatus::Unknown);
 
-    Ok(BiologicalTraits {
+    let traits = BiologicalTraits {
         taxon_id,
         scientific_name: taxon.name,
         common_name: clean_opt(taxon.preferred_common_name.as_deref()),
@@ -993,7 +1178,8 @@ pub fn parse_inaturalist_taxon_response(
         habitat: inferred.habitat,
         defenses: inferred.defenses,
         iucn_status,
-    })
+    };
+    Ok((traits, media))
 }
 
 /// Parses a GBIF `/v1/species/{key}` JSON response into default [`BiologicalTraits`].
@@ -1336,7 +1522,7 @@ fn infer_defaults_from_taxonomy(
     }
 }
 
-fn infer_almanac_category(taxonomic_class: &str, habitat: Habitat) -> &'static str {
+pub(crate) fn infer_almanac_category(taxonomic_class: &str, habitat: Habitat) -> &'static str {
     if matches!(habitat, Habitat::Marine | Habitat::Abyssal)
         && !matches!(taxonomic_class, "Aves" | "Reptilia")
     {
@@ -1351,7 +1537,7 @@ fn infer_almanac_category(taxonomic_class: &str, habitat: Habitat) -> &'static s
     }
 }
 
-fn clean_opt(value: Option<&str>) -> Option<String> {
+pub(crate) fn clean_opt(value: Option<&str>) -> Option<String> {
     value
         .map(str::trim)
         .filter(|s| !s.is_empty())
@@ -1565,5 +1751,44 @@ mod tests {
         assert_eq!(wd.mass_grams, Some(150_000));
         assert_eq!(wd.iucn_status, Some(IucnStatus::En));
         assert_eq!(wd.label_es.as_deref(), Some("Tigre"));
+    }
+
+    #[test]
+    fn filters_non_fauna_candidates_and_rejects_low_percentage_scores() {
+        // Low score 0.45% must be rejected even though 0.45 > 0.35 numerically.
+        let low_pct = r#"{
+            "results": [{
+                "combined_score": 0.45,
+                "taxon": { "id": 13858, "name": "Passer domesticus", "rank": "species", "rank_level": 10, "iconic_taxon_name": "Aves" }
+            }]
+        }"#;
+        let low_err = parse_inaturalist_cv_candidate(low_pct, 0.35).unwrap_err();
+        assert!(matches!(low_err, VisionError::NoSpeciesDetected));
+
+        // Plant top result skipped when a qualifying butterfly result follows.
+        let mixed_plant_then_insect = r#"{
+            "results": [
+                {
+                    "combined_score": 82.0,
+                    "taxon": { "id": 51111, "name": "Asclepias curassavica", "rank": "species", "rank_level": 10, "iconic_taxon_name": "Plantae" }
+                },
+                {
+                    "combined_score": 68.0,
+                    "taxon": { "id": 48662, "name": "Danaus plexippus", "rank": "species", "rank_level": 10, "iconic_taxon_name": "Insecta", "preferred_common_name": "Mariposa Monarca" }
+                }
+            ]
+        }"#;
+        let picked = parse_inaturalist_cv_candidate(mixed_plant_then_insect, 0.35).unwrap();
+        assert_eq!(picked.taxon.id, 48_662);
+
+        // Only plant detected -> NonFaunaDetected error.
+        let plant_only = r#"{
+            "results": [{
+                "combined_score": 90.0,
+                "taxon": { "id": 51111, "name": "Monstera deliciosa", "rank": "species", "rank_level": 10, "iconic_taxon_name": "Plantae" }
+            }]
+        }"#;
+        let plant_err = parse_inaturalist_cv_candidate(plant_only, 0.35).unwrap_err();
+        assert!(matches!(plant_err, VisionError::NonFaunaDetected { .. }));
     }
 }

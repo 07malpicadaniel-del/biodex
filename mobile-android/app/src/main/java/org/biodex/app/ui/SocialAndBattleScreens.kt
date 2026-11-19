@@ -18,7 +18,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Lock
@@ -45,12 +47,10 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun BattleScreen(
-    uiState: BioDexUiState,
     onGoToScanner: () -> Unit,
+    onGoToCollection: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val capturedCards = uiState.almanacEntries.filter { it.discovered }
-
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -62,7 +62,7 @@ fun BattleScreen(
     ) {
         SectionHeader(
             title = "Arena de Combate",
-            subtitle = "Batallas deterministas por turnos (3v3 con energía)",
+            subtitle = "Disponible en Fase 2",
             icon = Icons.Default.Bolt,
             accent = BioDexColors.Warning,
         )
@@ -72,88 +72,38 @@ fun BattleScreen(
             shape = RoundedCornerShape(18.dp),
             modifier = Modifier
                 .fillMaxWidth()
-                .border(1.5.dp, BioDexColors.Warning.copy(alpha = 0.5f), RoundedCornerShape(18.dp)),
+                .border(1.5.dp, BioDexColors.Warning.copy(alpha = 0.45f), RoundedCornerShape(18.dp)),
         ) {
             Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = "Tu Escuadrón Disponible",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = BioDexColors.TextPrimary,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    StatusPill(text = "FASE 2", color = BioDexColors.Warning)
-                }
-
+                StatusPill(text = "FASE 2 · EN PREPARACIÓN", color = BioDexColors.Warning)
                 Text(
-                    text = "${capturedCards.size} de 3 criaturas mínimas capturadas para formar un equipo competitivo.",
+                    text = "El sistema de combates aún está desactivado mientras completamos el Escáner en vivo y tu Colección enciclopédica con NaturaLista.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = BioDexColors.TextSecondary,
                 )
-
-                if (capturedCards.isNotEmpty()) {
-                    capturedCards.take(3).forEach { entry ->
-                        Surface(
-                            color = BioDexColors.SurfaceElevated,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = entry.commonName ?: entry.scientificName,
-                                        style = MaterialTheme.typography.titleSmall,
-                                        color = BioDexColors.TextPrimary,
-                                        fontWeight = FontWeight.Bold,
-                                    )
-                                    Text(
-                                        text = "${entry.baseCard.stats.hp} HP · ${entry.baseCard.stats.attack} ATK",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = BioDexColors.TextSecondary,
-                                    )
-                                }
-                                StatusPill(
-                                    text = "Coste ${entry.baseCard.deployCost}",
-                                    color = BioDexColors.Primary,
-                                )
-                            }
-                        }
-                    }
-                } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     Button(
                         onClick = onGoToScanner,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(containerColor = BioDexColors.Primary),
                     ) {
-                        Text(
-                            text = "Capturar Criaturas en el Escáner",
-                            color = BioDexColors.OnPrimary,
-                            fontWeight = FontWeight.Bold,
-                        )
+                        Text("Ir al Escáner", color = BioDexColors.OnPrimary, fontWeight = FontWeight.Bold)
+                    }
+                    OutlinedButton(
+                        onClick = onGoToCollection,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text("Ver Colección", color = BioDexColors.TextPrimary)
                     }
                 }
             }
         }
-
-        InfoRuleCard(
-            title = "Reglas del Motor Determinista",
-            bullets = listOf(
-                "Combates 1v1 con equipos de 3 criaturas y gestión de energía (coste 1–10).",
-                "Las capturas Salvajes conservan el 100% del potencial genético; Santuario aplica 85%.",
-                "Misma secuencia de jugadas + semilla produce resultado verificable en servidor.",
-            ),
-        )
     }
 }
 
@@ -173,7 +123,7 @@ fun FriendsScreen(
     ) {
         SectionHeader(
             title = "Amigos e Intercambios",
-            subtitle = "Red de exploradores e intercambio P2P verificable",
+            subtitle = "Red de exploradores (Fase 2)",
             icon = Icons.Default.Group,
             accent = BioDexColors.Primary,
         )
@@ -193,7 +143,7 @@ fun FriendsScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = "Tu Código de Explorador",
+                        text = "Tu ID de Explorador",
                         style = MaterialTheme.typography.titleMedium,
                         color = BioDexColors.TextPrimary,
                         fontWeight = FontWeight.Bold,
@@ -236,18 +186,18 @@ fun FriendsScreen(
                         tint = BioDexColors.Warning,
                     )
                     Text(
-                        text = "Mercado P2P y Lista de Amigos",
+                        text = "Intercambios P2P y Amigos",
                         style = MaterialTheme.typography.titleMedium,
                         color = BioDexColors.TextPrimary,
                         fontWeight = FontWeight.Bold,
                     )
                 }
                 Text(
-                    text = "En Fase 2 podrás agregar exploradores cercanos e intercambiar cartas conservando su procedencia original (coordenadas, fecha y variante Salvaje/Santuario).",
+                    text = "Disponible en la Fase 2 para agregar exploradores e intercambiar registros conservando su ubicación y procedencia verificada.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = BioDexColors.TextSecondary,
                 )
-                StatusPill(text = "FASE 2 · SINCRONIZACIÓN SOCIAL", color = BioDexColors.Warning)
+                StatusPill(text = "FASE 2 · EN PREPARACIÓN", color = BioDexColors.Warning)
             }
         }
     }
@@ -260,6 +210,7 @@ fun ProfileScreen(
     onApplyCustomUrl: () -> Unit,
     onResetDefaultUrl: () -> Unit,
     onRefreshConnection: () -> Unit,
+    onLogout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -273,7 +224,7 @@ fun ProfileScreen(
     ) {
         SectionHeader(
             title = "Perfil del Explorador",
-            subtitle = "Identidad hardware y diagnóstico de conexión",
+            subtitle = "Sesión activa y diagnóstico de conexión",
             icon = Icons.Default.Person,
             accent = BioDexColors.Primary,
         )
@@ -297,16 +248,20 @@ fun ProfileScreen(
                             .size(48.dp)
                             .clip(CircleShape)
                             .background(BioDexColors.SurfaceElevated)
-                            .border(1.5.dp, BioDexColors.Primary, CircleShape),
+                            .border(
+                                1.5.dp,
+                                if (uiState.isDevMode) BioDexColors.Warning else BioDexColors.Primary,
+                                CircleShape,
+                            ),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Person,
+                            imageVector = if (uiState.isDevMode) Icons.Default.Build else Icons.Default.Person,
                             contentDescription = null,
-                            tint = BioDexColors.Primary,
+                            tint = if (uiState.isDevMode) BioDexColors.Warning else BioDexColors.Primary,
                         )
                     }
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = uiState.playerId,
                             style = MaterialTheme.typography.titleMedium,
@@ -324,12 +279,17 @@ fun ProfileScreen(
                                 modifier = Modifier.size(14.dp),
                             )
                             Text(
-                                text = "Android Keystore ECDSA P-256 activo",
+                                text = "Keystore ECDSA P-256 activo",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = BioDexColors.Primary,
                             )
                         }
                     }
+
+                    StatusPill(
+                        text = if (uiState.isDevMode) "MODO DEV" else "EXPLORADOR",
+                        color = if (uiState.isDevMode) BioDexColors.Warning else BioDexColors.Primary,
+                    )
                 }
 
                 Row(
@@ -345,12 +305,31 @@ fun ProfileScreen(
                         value = "${uiState.almanacDiscoveredCount}/${uiState.almanacTotalSpecies}",
                     )
                     ProfileStat(
-                        label = "Capturas",
+                        label = "Registros",
                         value = uiState.totalCapturesCount.toString(),
                     )
                     ProfileStat(
                         label = "IMU",
                         value = if (uiState.telemetry.hasImuFix) "OK" else "...",
+                    )
+                }
+
+                OutlinedButton(
+                    onClick = onLogout,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ExitToApp,
+                        contentDescription = null,
+                        tint = BioDexColors.Warning,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.size(8.dp))
+                    Text(
+                        text = "Cerrar Sesión / Cambiar Modo Dev",
+                        color = BioDexColors.TextPrimary,
+                        fontWeight = FontWeight.SemiBold,
                     )
                 }
             }
@@ -495,37 +474,6 @@ private fun SectionHeader(
                 )
                 Text(
                     text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = BioDexColors.TextSecondary,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun InfoRuleCard(
-    title: String,
-    bullets: List<String>,
-) {
-    Surface(
-        color = BioDexColors.Surface,
-        shape = RoundedCornerShape(18.dp),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                color = BioDexColors.TextPrimary,
-                fontWeight = FontWeight.Bold,
-            )
-            bullets.forEach { line ->
-                Text(
-                    text = "• $line",
                     style = MaterialTheme.typography.bodySmall,
                     color = BioDexColors.TextSecondary,
                 )

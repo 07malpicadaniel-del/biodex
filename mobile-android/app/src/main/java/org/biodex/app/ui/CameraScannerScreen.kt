@@ -1,11 +1,15 @@
 package org.biodex.app.ui
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.pm.PackageManager
 import android.util.Size
+import android.view.MotionEvent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
@@ -15,6 +19,7 @@ import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -34,9 +39,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.FlashOff
+import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -55,7 +63,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
@@ -64,13 +74,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import kotlin.math.roundToInt
 
+@SuppressLint("ClickableViewAccessibility")
 @Composable
 fun CameraScannerScreen(
     uiState: BioDexUiState,
     onLocationPermissionGranted: () -> Unit,
     onRefreshHealth: () -> Unit,
     onCaptureJpeg: (ByteArray) -> Unit,
+    onCaptureError: (String) -> Unit,
     onDismissError: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -123,6 +137,9 @@ fun CameraScannerScreen(
     }
 
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
+    var boundCamera by remember { mutableStateOf<Camera?>(null) }
+    var torchEnabled by remember { mutableStateOf(false) }
+    var zoom2xEnabled by remember { mutableStateOf(false) }
 
     Box(
         modifier = modifier
@@ -148,29 +165,50 @@ fun CameraScannerScreen(
                                 .setResolutionStrategy(
                                     ResolutionStrategy(
                                         Size(1280, 960),
-                                        ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER,
+                                        ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER,
                                     ),
                                 )
                                 .build()
                             val capture = ImageCapture.Builder()
                                 .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-                                .setJpegQuality(85)
+                                .setJpegQuality(90)
                                 .setResolutionSelector(resolutionSelector)
                                 .build()
 
                             cameraProvider.unbindAll()
-                            cameraProvider.bindToLifecycle(
+                            val cam = cameraProvider.bindToLifecycle(
                                 lifecycleOwner,
                                 CameraSelector.DEFAULT_BACK_CAMERA,
                                 preview,
                                 capture,
                             )
+                            boundCamera = cam
                             imageCapture = capture
+
+                            previewView.setOnTouchListener { view, event ->
+                                if (event.action == MotionEvent.ACTION_UP) {
+                                    val point = previewView.meteringPointFactory.createPoint(event.x, event.y)
+                                    val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF)
+                                        .setAutoCancelDuration(3, TimeUnit.SECONDS)
+                                        .build()
+                                    cam.cameraControl.startFocusAndMetering(action)
+                                    view.performClick()
+                                }
+                                true
+                            }
                         },
                         ContextCompat.getMainExecutor(ctx),
                     )
                     previewView
                 },
+            )
+
+            // Viewfinder framing reticle
+            ScannerReticleOverlay(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(236.dp),
+                accent = if (uiState.isSubmitting) BioDexColors.Warning else BioDexColors.Primary,
             )
         } else {
             Column(
@@ -229,12 +267,31 @@ fun CameraScannerScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "BioDex Live Scanner",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = BioDexColors.TextPrimary,
-                            fontWeight = FontWeight.Bold,
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text(
+                                text = "BioDex Live Scanner",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = BioDexColors.TextPrimary,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            if (uiState.isDevMode) {
+                                Surface(
+                                    color = BioDexColors.Warning.copy(alpha = 0.22f),
+                                    shape = RoundedCornerShape(6.dp),
+                                ) {
+                                    Text(
+                                        text = "DEV",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = BioDexColors.Warning,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    )
+                                }
+                            }
+                        }
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -307,13 +364,93 @@ fun CameraScannerScreen(
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = if (activeLat != null && activeLon != null) {
-                                "%.4f, %.4f".format(activeLat, activeLon)
+                                val acc = uiState.telemetry.accuracyMeters.roundToInt()
+                                "%.4f, %.4f (±%dm)".format(activeLat, activeLon, acc)
                             } else {
                                 "Buscando GPS..."
                             },
                             style = MaterialTheme.typography.labelSmall,
                             color = BioDexColors.TextPrimary,
                         )
+                    }
+                }
+            }
+        }
+
+        // Camera quick controls (Torch + Zoom) on right edge
+        if (hasCameraPermission) {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                if (boundCamera?.cameraInfo?.hasFlashUnit() == true) {
+                    Surface(
+                        color = Color(0xBB0A1510),
+                        shape = CircleShape,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .border(
+                                1.dp,
+                                if (torchEnabled) BioDexColors.Warning else BioDexColors.SurfaceElevated,
+                                CircleShape,
+                            )
+                            .clickable {
+                                val next = !torchEnabled
+                                torchEnabled = next
+                                boundCamera?.cameraControl?.enableTorch(next)
+                            },
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = if (torchEnabled) Icons.Default.FlashOn else Icons.Default.FlashOff,
+                                contentDescription = "Linterna",
+                                tint = if (torchEnabled) BioDexColors.Warning else BioDexColors.TextPrimary,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                    }
+                }
+
+                Surface(
+                    color = Color(0xBB0A1510),
+                    shape = CircleShape,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .border(
+                            1.dp,
+                            if (zoom2xEnabled) BioDexColors.Primary else BioDexColors.SurfaceElevated,
+                            CircleShape,
+                        )
+                        .clickable {
+                            val nextZoom = !zoom2xEnabled
+                            zoom2xEnabled = nextZoom
+                            val zoomState = boundCamera?.cameraInfo?.zoomState?.value
+                            val targetRatio = if (nextZoom && zoomState != null) {
+                                2.0f.coerceIn(zoomState.minZoomRatio, zoomState.maxZoomRatio)
+                            } else {
+                                zoomState?.minZoomRatio ?: 1.0f
+                            }
+                            boundCamera?.cameraControl?.setZoomRatio(targetRatio)
+                        },
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        if (zoom2xEnabled) {
+                            Text(
+                                text = "2x",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = BioDexColors.Primary,
+                                fontWeight = FontWeight.ExtraBold,
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.ZoomIn,
+                                contentDescription = "Zoom 2x",
+                                tint = BioDexColors.TextPrimary,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
                     }
                 }
             }
@@ -328,6 +465,31 @@ fun CameraScannerScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            if (uiState.isSubmitting) {
+                Surface(
+                    color = Color(0xE60A1510),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        CircularProgressIndicator(
+                            color = BioDexColors.Primary,
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.5.dp,
+                        )
+                        Text(
+                            text = "Identificando especie con NaturaLista CV y validando rango PostGIS...",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = BioDexColors.TextPrimary,
+                        )
+                    }
+                }
+            }
+
             uiState.errorMessage?.let { msg ->
                 Surface(
                     color = Color(0xE67F1D1D),
@@ -366,7 +528,11 @@ fun CameraScannerScreen(
                                     onCaptureJpeg(bytes)
                                 }
 
-                                override fun onError(exception: ImageCaptureException) = Unit
+                                override fun onError(exception: ImageCaptureException) {
+                                    onCaptureError(
+                                        "No se pudo capturar la imagen (${exception.message ?: "error de cámara"})",
+                                    )
+                                }
                             },
                         )
                     },
@@ -388,5 +554,29 @@ fun CameraScannerScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ScannerReticleOverlay(
+    accent: Color,
+    modifier: Modifier = Modifier,
+) {
+    Canvas(modifier = modifier) {
+        val cornerLen = size.minDimension * 0.16f
+        val stroke = 3.dp.toPx()
+
+        // Top-Left
+        drawLine(accent, Offset(0f, 0f), Offset(cornerLen, 0f), stroke, StrokeCap.Round)
+        drawLine(accent, Offset(0f, 0f), Offset(0f, cornerLen), stroke, StrokeCap.Round)
+        // Top-Right
+        drawLine(accent, Offset(size.width, 0f), Offset(size.width - cornerLen, 0f), stroke, StrokeCap.Round)
+        drawLine(accent, Offset(size.width, 0f), Offset(size.width, cornerLen), stroke, StrokeCap.Round)
+        // Bottom-Left
+        drawLine(accent, Offset(0f, size.height), Offset(cornerLen, size.height), stroke, StrokeCap.Round)
+        drawLine(accent, Offset(0f, size.height), Offset(0f, size.height - cornerLen), stroke, StrokeCap.Round)
+        // Bottom-Right
+        drawLine(accent, Offset(size.width, size.height), Offset(size.width - cornerLen, size.height), stroke, StrokeCap.Round)
+        drawLine(accent, Offset(size.width, size.height), Offset(size.width, size.height - cornerLen), stroke, StrokeCap.Round)
     }
 }

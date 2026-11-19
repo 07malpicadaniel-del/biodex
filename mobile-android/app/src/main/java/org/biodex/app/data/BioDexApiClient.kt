@@ -4,6 +4,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -84,25 +85,64 @@ class BioDexApiClient(
         }
     }
 
-    suspend fun fetchAlmanac(userId: String? = null): Result<AlmanacListResponse> =
-        withContext(Dispatchers.IO) {
-            executeWithEndpointFailover { baseUrl ->
-                val urlBuilder = "$baseUrl/api/v1/almanac".toHttpUrl().newBuilder()
-                if (!userId.isNullOrBlank()) {
-                    urlBuilder.addQueryParameter("user_id", userId)
-                }
-                val req = Request.Builder()
-                    .url(urlBuilder.build())
-                    .get()
-                    .build()
+    suspend fun fetchAlmanac(
+        userId: String? = null,
+        devMode: Boolean = false,
+    ): Result<AlmanacListResponse> =
+        executeGet("/api/v1/almanac") { builder ->
+            if (!userId.isNullOrBlank()) {
+                builder.addQueryParameter("user_id", userId)
+            }
+            if (devMode) {
+                builder.addQueryParameter("dev_mode", "true")
+            }
+        }
 
-                client.newCall(req).execute().use { resp ->
-                    val body = resp.body?.string().orEmpty()
-                    if (!resp.isSuccessful) {
-                        throw ApiHttpException("Almanaque HTTP ${resp.code}: $body")
-                    }
-                    json.decodeFromString<AlmanacListResponse>(body)
-                }
+    suspend fun searchNaturaLista(
+        query: String,
+        userId: String? = null,
+        devMode: Boolean = false,
+    ): Result<NaturaListaDiscoveryResponse> =
+        executeGet("/api/v1/almanac/naturalista/search") { builder ->
+            builder.addQueryParameter("q", query.trim())
+            if (!userId.isNullOrBlank()) {
+                builder.addQueryParameter("user_id", userId)
+            }
+            if (devMode) {
+                builder.addQueryParameter("dev_mode", "true")
+            }
+        }
+
+    suspend fun fetchNearbyNaturaLista(
+        latitude: Double,
+        longitude: Double,
+        radiusKm: Int = 25,
+        userId: String? = null,
+        devMode: Boolean = false,
+    ): Result<NaturaListaDiscoveryResponse> =
+        executeGet("/api/v1/almanac/naturalista/nearby") { builder ->
+            builder.addQueryParameter("lat", latitude.toString())
+            builder.addQueryParameter("lng", longitude.toString())
+            builder.addQueryParameter("radius_km", radiusKm.toString())
+            if (!userId.isNullOrBlank()) {
+                builder.addQueryParameter("user_id", userId)
+            }
+            if (devMode) {
+                builder.addQueryParameter("dev_mode", "true")
+            }
+        }
+
+    suspend fun inspectNaturaListaTaxon(
+        inaturalistId: Long,
+        userId: String? = null,
+        devMode: Boolean = false,
+    ): Result<AlmanacItemDto> =
+        executeGet("/api/v1/almanac/naturalista/taxon/$inaturalistId") { builder ->
+            if (!userId.isNullOrBlank()) {
+                builder.addQueryParameter("user_id", userId)
+            }
+            if (devMode) {
+                builder.addQueryParameter("dev_mode", "true")
             }
         }
 
@@ -118,25 +158,45 @@ class BioDexApiClient(
                 client.newCall(req).execute().use { resp ->
                     val body = resp.body?.string().orEmpty()
                     if (!resp.isSuccessful) {
-                        val parsedError = runCatching {
-                            json.decodeFromString<ApiErrorEnvelope>(body).error
-                        }.getOrNull()
-                        val msg = when (parsedError?.code) {
-                            "vision_not_configured" ->
-                                "Pendiente configurar credenciales de visión en el backend."
-                            "taxonomic_rank_too_broad" ->
-                                "Acércate un poco más o enfoca mejor: solo se pudo distinguir un grupo general."
-                            "no_species_detected" ->
-                                "No se identificó ninguna especie con suficiente claridad. Intenta otra toma."
-                            else -> parsedError?.let { "${it.code}: ${it.message}" }
-                                ?: "HTTP ${resp.code}: $body"
-                        }
-                        throw ApiHttpException(msg)
+                        throw ApiHttpException(friendlyApiError(resp.code, body))
                     }
                     json.decodeFromString<CaptureUploadResponse>(body)
                 }
             }
         }
+
+    private suspend inline fun <reified T> executeGet(
+        path: String,
+        crossinline configureQuery: (HttpUrl.Builder) -> Unit,
+    ): Result<T> = withContext(Dispatchers.IO) {
+        executeWithEndpointFailover { baseUrl ->
+            val builder = "$baseUrl$path".toHttpUrl().newBuilder()
+            configureQuery(builder)
+            val req = Request.Builder().url(builder.build()).get().build()
+            client.newCall(req).execute().use { resp ->
+                val body = resp.body?.string().orEmpty()
+                if (!resp.isSuccessful) {
+                    throw ApiHttpException(friendlyApiError(resp.code, body))
+                }
+                json.decodeFromString<T>(body)
+            }
+        }
+    }
+
+    private fun friendlyApiError(httpCode: Int, body: String): String {
+        val parsed = runCatching { json.decodeFromString<ApiErrorEnvelope>(body).error }.getOrNull()
+        return when (parsed?.code) {
+            "vision_not_configured" ->
+                "Pendiente configurar credenciales de visión en el backend."
+            "taxonomic_rank_too_broad" ->
+                "Acércate un poco más o enfoca mejor: solo se pudo distinguir un grupo general."
+            "no_species_detected" ->
+                "No se identificó ninguna especie con suficiente claridad. Intenta otra toma."
+            "non_fauna_detected" ->
+                "BioDex solo registra fauna animal; enfoca directamente un animal."
+            else -> parsed?.let { "${it.code}: ${it.message}" } ?: "HTTP $httpCode: $body"
+        }
+    }
 
     private fun <T> executeWithEndpointFailover(block: (String) -> T): Result<T> = runCatching {
         val current = activeBaseUrlRef.get()

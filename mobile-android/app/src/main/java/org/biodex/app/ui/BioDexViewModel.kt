@@ -1,7 +1,10 @@
 package org.biodex.app.ui
 
+import android.Manifest
 import android.app.Application
 import android.content.Context
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
@@ -19,9 +22,11 @@ import org.biodex.app.data.CaptureUploadRequest
 import org.biodex.app.data.CaptureUploadResponse
 import org.biodex.app.data.GeoPointDto
 import org.biodex.app.data.ImuReadingDto
+import org.biodex.app.data.NaturaListaDiscoveryResponse
+import org.biodex.app.data.NaturaListaSpeciesDto
 import org.biodex.app.integrity.CanonicalPayload
+import org.biodex.app.integrity.CaptureImageProcessor
 import org.biodex.app.integrity.HardwareKeystoreSigner
-import org.biodex.app.integrity.MoireAnalyzer
 import org.biodex.app.integrity.SensorTelemetryTracker
 import org.biodex.app.integrity.TelemetrySnapshot
 import java.util.Base64
@@ -39,6 +44,20 @@ enum class AlmanacCategoryFilter(
     Aquatic("aquatic", "Acuáticos"),
 }
 
+enum class AlmanacCaptureFilter(val label: String) {
+    All("Todas"),
+    Captured("Capturadas"),
+    WildOnly("Salvajes"),
+    SanctuaryOnly("Santuario"),
+    Undiscovered("Por descubrir"),
+}
+
+enum class CollectionSubTab(val label: String) {
+    Almanac("Mi Colección"),
+    Nearby("Cerca"),
+    Search("NaturaLista"),
+}
+
 enum class BioDexTab {
     Scanner,
     Collection,
@@ -48,8 +67,12 @@ enum class BioDexTab {
 }
 
 data class BioDexUiState(
+    val isLoggedIn: Boolean = false,
+    val explorerNameInput: String = DEFAULT_EXPLORER_ID,
+    val loginDevModeSelected: Boolean = false,
+    val isDevMode: Boolean = false,
     val activeTab: BioDexTab = BioDexTab.Scanner,
-    val playerId: String = "android-field-explorer",
+    val playerId: String = DEFAULT_EXPLORER_ID,
     val telemetry: TelemetrySnapshot = TelemetrySnapshot(),
     val backendOnline: Boolean? = null,
     val backendStatusText: String = "Verificando servidor...",
@@ -59,28 +82,43 @@ data class BioDexUiState(
     val capturedJpegBytes: ByteArray? = null,
     val lastCaptureResponse: CaptureUploadResponse? = null,
     val errorMessage: String? = null,
+    val collectionSubTab: CollectionSubTab = CollectionSubTab.Almanac,
     val almanacLoading: Boolean = false,
     val almanacTotalSpecies: Int = 0,
     val almanacDiscoveredCount: Int = 0,
     val almanacEntries: List<AlmanacItemDto> = emptyList(),
     val almanacSearchQuery: String = "",
     val almanacCategoryFilter: AlmanacCategoryFilter = AlmanacCategoryFilter.All,
-    val almanacOnlyCaptured: Boolean = false,
+    val almanacCaptureFilter: AlmanacCaptureFilter = AlmanacCaptureFilter.All,
     val selectedAlmanacEntry: AlmanacItemDto? = null,
     val almanacError: String? = null,
+    val naturalistaSearchQuery: String = "",
+    val naturalistaSearchLoading: Boolean = false,
+    val naturalistaSearchResults: NaturaListaDiscoveryResponse? = null,
+    val naturalistaSearchError: String? = null,
+    val naturalistaNearbyLoading: Boolean = false,
+    val naturalistaNearbyResults: NaturaListaDiscoveryResponse? = null,
+    val naturalistaNearbyError: String? = null,
+    val inspectingTaxonLoading: Boolean = false,
 ) {
     val filteredAlmanacEntries: List<AlmanacItemDto>
         get() {
             val query = almanacSearchQuery.trim().lowercase()
             val categoryKey = almanacCategoryFilter.apiKey
             return almanacEntries.filter { item ->
-                val matchesCaptured = !almanacOnlyCaptured || item.discovered
+                val matchesCapture = when (almanacCaptureFilter) {
+                    AlmanacCaptureFilter.All -> true
+                    AlmanacCaptureFilter.Captured -> item.discovered
+                    AlmanacCaptureFilter.WildOnly -> item.discovered && item.bestVariant == "wild"
+                    AlmanacCaptureFilter.SanctuaryOnly -> item.discovered && item.bestVariant == "sanctuary"
+                    AlmanacCaptureFilter.Undiscovered -> !item.discovered
+                }
                 val matchesCategory = categoryKey == null || item.category == categoryKey
                 val matchesQuery = query.isEmpty() ||
                     item.scientificName.lowercase().contains(query) ||
                     (item.commonName?.lowercase()?.contains(query) == true) ||
                     item.summary.lowercase().contains(query)
-                matchesCaptured && matchesCategory && matchesQuery
+                matchesCapture && matchesCategory && matchesQuery
             }
         }
 
@@ -90,7 +128,11 @@ data class BioDexUiState(
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is BioDexUiState) return false
-        return activeTab == other.activeTab &&
+        return isLoggedIn == other.isLoggedIn &&
+            explorerNameInput == other.explorerNameInput &&
+            loginDevModeSelected == other.loginDevModeSelected &&
+            isDevMode == other.isDevMode &&
+            activeTab == other.activeTab &&
             playerId == other.playerId &&
             telemetry == other.telemetry &&
             backendOnline == other.backendOnline &&
@@ -101,19 +143,32 @@ data class BioDexUiState(
             capturedJpegBytes.contentEquals(other.capturedJpegBytes) &&
             lastCaptureResponse == other.lastCaptureResponse &&
             errorMessage == other.errorMessage &&
+            collectionSubTab == other.collectionSubTab &&
             almanacLoading == other.almanacLoading &&
             almanacTotalSpecies == other.almanacTotalSpecies &&
             almanacDiscoveredCount == other.almanacDiscoveredCount &&
             almanacEntries == other.almanacEntries &&
             almanacSearchQuery == other.almanacSearchQuery &&
             almanacCategoryFilter == other.almanacCategoryFilter &&
-            almanacOnlyCaptured == other.almanacOnlyCaptured &&
+            almanacCaptureFilter == other.almanacCaptureFilter &&
             selectedAlmanacEntry == other.selectedAlmanacEntry &&
-            almanacError == other.almanacError
+            almanacError == other.almanacError &&
+            naturalistaSearchQuery == other.naturalistaSearchQuery &&
+            naturalistaSearchLoading == other.naturalistaSearchLoading &&
+            naturalistaSearchResults == other.naturalistaSearchResults &&
+            naturalistaSearchError == other.naturalistaSearchError &&
+            naturalistaNearbyLoading == other.naturalistaNearbyLoading &&
+            naturalistaNearbyResults == other.naturalistaNearbyResults &&
+            naturalistaNearbyError == other.naturalistaNearbyError &&
+            inspectingTaxonLoading == other.inspectingTaxonLoading
     }
 
     override fun hashCode(): Int {
-        var result = activeTab.hashCode()
+        var result = isLoggedIn.hashCode()
+        result = 31 * result + explorerNameInput.hashCode()
+        result = 31 * result + loginDevModeSelected.hashCode()
+        result = 31 * result + isDevMode.hashCode()
+        result = 31 * result + activeTab.hashCode()
         result = 31 * result + playerId.hashCode()
         result = 31 * result + telemetry.hashCode()
         result = 31 * result + (backendOnline?.hashCode() ?: 0)
@@ -124,22 +179,39 @@ data class BioDexUiState(
         result = 31 * result + (capturedJpegBytes?.contentHashCode() ?: 0)
         result = 31 * result + (lastCaptureResponse?.hashCode() ?: 0)
         result = 31 * result + (errorMessage?.hashCode() ?: 0)
+        result = 31 * result + collectionSubTab.hashCode()
         result = 31 * result + almanacLoading.hashCode()
         result = 31 * result + almanacTotalSpecies
         result = 31 * result + almanacDiscoveredCount
         result = 31 * result + almanacEntries.hashCode()
         result = 31 * result + almanacSearchQuery.hashCode()
         result = 31 * result + almanacCategoryFilter.hashCode()
-        result = 31 * result + almanacOnlyCaptured.hashCode()
+        result = 31 * result + almanacCaptureFilter.hashCode()
         result = 31 * result + (selectedAlmanacEntry?.hashCode() ?: 0)
         result = 31 * result + (almanacError?.hashCode() ?: 0)
+        result = 31 * result + naturalistaSearchQuery.hashCode()
+        result = 31 * result + naturalistaSearchLoading.hashCode()
+        result = 31 * result + (naturalistaSearchResults?.hashCode() ?: 0)
+        result = 31 * result + (naturalistaSearchError?.hashCode() ?: 0)
+        result = 31 * result + naturalistaNearbyLoading.hashCode()
+        result = 31 * result + (naturalistaNearbyResults?.hashCode() ?: 0)
+        result = 31 * result + (naturalistaNearbyError?.hashCode() ?: 0)
+        result = 31 * result + inspectingTaxonLoading.hashCode()
         return result
+    }
+
+    companion object {
+        const val DEFAULT_EXPLORER_ID = "android-field-explorer"
     }
 }
 
 class BioDexViewModel(application: Application) : AndroidViewModel(application) {
     private val prefs = application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val savedCustomUrl = prefs.getString(KEY_CUSTOM_SERVER_URL, "")?.trim().orEmpty()
+    private val savedExplorerId = prefs.getString(KEY_LAST_EXPLORER_ID, "")
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() }
+        ?: BioDexUiState.DEFAULT_EXPLORER_ID
 
     private val apiClient = BioDexApiClient(
         primaryUrl = BuildConfig.API_BASE_URL,
@@ -151,6 +223,9 @@ class BioDexViewModel(application: Application) : AndroidViewModel(application) 
 
     private val _uiState = MutableStateFlow(
         BioDexUiState(
+            isLoggedIn = false,
+            explorerNameInput = savedExplorerId,
+            playerId = savedExplorerId,
             activeBackendUrl = apiClient.activeBaseUrl(),
             customServerUrlInput = savedCustomUrl,
         ),
@@ -159,25 +234,141 @@ class BioDexViewModel(application: Application) : AndroidViewModel(application) 
 
     init {
         telemetryTracker.startImu()
+        startLocationUpdatesIfPermitted()
         viewModelScope.launch {
             telemetryTracker.snapshot.collect { snap ->
                 _uiState.update { it.copy(telemetry = snap) }
             }
         }
+        refreshConnectionHealthOnly()
+    }
+
+    private fun startLocationUpdatesIfPermitted() {
+        val ctx = getApplication<Application>()
+        val fineGranted = ContextCompat.checkSelfPermission(
+            ctx,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+        ) == PackageManager.PERMISSION_GRANTED
+        val coarseGranted = ContextCompat.checkSelfPermission(
+            ctx,
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+        ) == PackageManager.PERMISSION_GRANTED
+        if (fineGranted || coarseGranted) {
+            telemetryTracker.startLocationUpdates()
+        }
+    }
+
+    fun updateExplorerNameInput(value: String) {
+        _uiState.update { it.copy(explorerNameInput = value) }
+    }
+
+    fun setLoginDevModeSelected(enabled: Boolean) {
+        _uiState.update { it.copy(loginDevModeSelected = enabled) }
+    }
+
+    fun login() {
+        val stateSnapshot = _uiState.value
+        val resolvedPlayer = stateSnapshot.explorerNameInput.trim().ifEmpty {
+            BioDexUiState.DEFAULT_EXPLORER_ID
+        }
+        prefs.edit().putString(KEY_LAST_EXPLORER_ID, resolvedPlayer).apply()
+
+        _uiState.update {
+            it.copy(
+                isLoggedIn = true,
+                playerId = resolvedPlayer,
+                explorerNameInput = resolvedPlayer,
+                isDevMode = it.loginDevModeSelected,
+                activeTab = if (it.loginDevModeSelected) BioDexTab.Collection else BioDexTab.Scanner,
+                collectionSubTab = CollectionSubTab.Almanac,
+                almanacCaptureFilter = AlmanacCaptureFilter.All,
+                almanacEntries = emptyList(),
+                naturalistaSearchResults = null,
+                naturalistaNearbyResults = null,
+                selectedAlmanacEntry = null,
+                lastCaptureResponse = null,
+                capturedJpegBytes = null,
+                errorMessage = null,
+            )
+        }
         refreshConnectionAndAlmanac()
+        startLocationUpdatesIfPermitted()
+    }
+
+    fun logout() {
+        _uiState.update {
+            it.copy(
+                isLoggedIn = false,
+                selectedAlmanacEntry = null,
+                lastCaptureResponse = null,
+                capturedJpegBytes = null,
+                errorMessage = null,
+                almanacEntries = emptyList(),
+                naturalistaSearchResults = null,
+                naturalistaNearbyResults = null,
+            )
+        }
+        refreshConnectionHealthOnly()
     }
 
     fun selectTab(tab: BioDexTab) {
         _uiState.update { it.copy(activeTab = tab, selectedAlmanacEntry = null) }
-        if ((tab == BioDexTab.Collection || tab == BioDexTab.Battle || tab == BioDexTab.Profile) &&
+        if ((tab == BioDexTab.Collection || tab == BioDexTab.Profile) &&
             _uiState.value.almanacEntries.isEmpty()
         ) {
             refreshAlmanac()
         }
     }
 
+    fun selectCollectionSubTab(subTab: CollectionSubTab) {
+        _uiState.update { it.copy(collectionSubTab = subTab) }
+        if (subTab == CollectionSubTab.Nearby &&
+            _uiState.value.naturalistaNearbyResults == null &&
+            !_uiState.value.naturalistaNearbyLoading
+        ) {
+            refreshNearbyNaturaLista()
+        }
+    }
+
+    fun goToCollectionFromResult() {
+        _uiState.update {
+            it.copy(
+                activeTab = BioDexTab.Collection,
+                collectionSubTab = CollectionSubTab.Almanac,
+                lastCaptureResponse = null,
+                capturedJpegBytes = null,
+                selectedAlmanacEntry = null,
+                errorMessage = null,
+            )
+        }
+        refreshAlmanac()
+    }
+
     fun onLocationPermissionGranted() {
         telemetryTracker.startLocationUpdates()
+    }
+
+    fun refreshConnectionHealthOnly() {
+        viewModelScope.launch {
+            val result = apiClient.checkHealth()
+            _uiState.update { state ->
+                result.fold(
+                    onSuccess = { conn ->
+                        state.copy(
+                            backendOnline = true,
+                            activeBackendUrl = conn.activeBaseUrl,
+                            backendStatusText = "API + PostGIS OK (${shortHost(conn.activeBaseUrl)})",
+                        )
+                    },
+                    onFailure = { err ->
+                        state.copy(
+                            backendOnline = false,
+                            backendStatusText = "Sin conexión: ${err.message ?: "offline"}",
+                        )
+                    },
+                )
+            }
+        }
     }
 
     fun refreshConnectionAndAlmanac() {
@@ -200,7 +391,7 @@ class BioDexViewModel(application: Application) : AndroidViewModel(application) 
                     },
                 )
             }
-            if (result.isSuccess) {
+            if (result.isSuccess && _uiState.value.isLoggedIn) {
                 refreshAlmanac()
             }
         }
@@ -228,9 +419,13 @@ class BioDexViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun refreshAlmanac() {
+        val stateSnapshot = _uiState.value
         viewModelScope.launch {
             _uiState.update { it.copy(almanacLoading = true, almanacError = null) }
-            val result = apiClient.fetchAlmanac(userId = _uiState.value.playerId)
+            val result = apiClient.fetchAlmanac(
+                userId = stateSnapshot.playerId,
+                devMode = stateSnapshot.isDevMode,
+            )
             _uiState.update { state ->
                 result.fold(
                     onSuccess = { almanac ->
@@ -256,6 +451,120 @@ class BioDexViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun updateNaturaListaSearchQuery(query: String) {
+        _uiState.update { it.copy(naturalistaSearchQuery = query) }
+    }
+
+    fun submitNaturaListaSearch() {
+        val stateSnapshot = _uiState.value
+        val query = stateSnapshot.naturalistaSearchQuery.trim()
+        if (query.length < 2) {
+            _uiState.update {
+                it.copy(naturalistaSearchError = "Escribe al menos 2 letras para buscar en NaturaLista.")
+            }
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(naturalistaSearchLoading = true, naturalistaSearchError = null)
+            }
+            val result = apiClient.searchNaturaLista(
+                query = query,
+                userId = stateSnapshot.playerId,
+                devMode = stateSnapshot.isDevMode,
+            )
+            _uiState.update { state ->
+                result.fold(
+                    onSuccess = { resp ->
+                        state.copy(
+                            naturalistaSearchLoading = false,
+                            naturalistaSearchResults = resp,
+                        )
+                    },
+                    onFailure = { err ->
+                        state.copy(
+                            naturalistaSearchLoading = false,
+                            naturalistaSearchError = err.message ?: "Error al consultar NaturaLista",
+                        )
+                    },
+                )
+            }
+        }
+    }
+
+    fun refreshNearbyNaturaLista(radiusKm: Int = 25) {
+        val stateSnapshot = _uiState.value
+        val lat = stateSnapshot.telemetry.latitude
+        val lon = stateSnapshot.telemetry.longitude
+        if (lat == null || lon == null) {
+            _uiState.update {
+                it.copy(
+                    naturalistaNearbyError =
+                        "Activa los permisos de ubicación y espera la señal GPS para consultar fauna cercana en NaturaLista.",
+                )
+            }
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(naturalistaNearbyLoading = true, naturalistaNearbyError = null)
+            }
+            val result = apiClient.fetchNearbyNaturaLista(
+                latitude = lat,
+                longitude = lon,
+                radiusKm = radiusKm,
+                userId = stateSnapshot.playerId,
+                devMode = stateSnapshot.isDevMode,
+            )
+            _uiState.update { state ->
+                result.fold(
+                    onSuccess = { resp ->
+                        state.copy(
+                            naturalistaNearbyLoading = false,
+                            naturalistaNearbyResults = resp,
+                        )
+                    },
+                    onFailure = { err ->
+                        state.copy(
+                            naturalistaNearbyLoading = false,
+                            naturalistaNearbyError = err.message
+                                ?: "No se pudieron obtener avistamientos cercanos",
+                        )
+                    },
+                )
+            }
+        }
+    }
+
+    fun inspectNaturaListaSpecies(species: NaturaListaSpeciesDto) {
+        val stateSnapshot = _uiState.value
+        if (stateSnapshot.inspectingTaxonLoading) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(inspectingTaxonLoading = true) }
+            val result = apiClient.inspectNaturaListaTaxon(
+                inaturalistId = species.taxonId.id,
+                userId = stateSnapshot.playerId,
+                devMode = stateSnapshot.isDevMode,
+            )
+            _uiState.update { state ->
+                result.fold(
+                    onSuccess = { entry ->
+                        state.copy(
+                            inspectingTaxonLoading = false,
+                            selectedAlmanacEntry = entry,
+                        )
+                    },
+                    onFailure = { err ->
+                        state.copy(
+                            inspectingTaxonLoading = false,
+                            almanacError = err.message ?: "No se pudo cargar la ficha de NaturaLista",
+                        )
+                    },
+                )
+            }
+        }
+    }
+
     fun updateAlmanacSearch(query: String) {
         _uiState.update { it.copy(almanacSearchQuery = query) }
     }
@@ -264,8 +573,8 @@ class BioDexViewModel(application: Application) : AndroidViewModel(application) 
         _uiState.update { it.copy(almanacCategoryFilter = filter) }
     }
 
-    fun toggleAlmanacOnlyCaptured() {
-        _uiState.update { it.copy(almanacOnlyCaptured = !it.almanacOnlyCaptured) }
+    fun selectAlmanacCaptureFilter(filter: AlmanacCaptureFilter) {
+        _uiState.update { it.copy(almanacCaptureFilter = filter) }
     }
 
     fun openAlmanacDetail(entry: AlmanacItemDto) {
@@ -290,7 +599,11 @@ class BioDexViewModel(application: Application) : AndroidViewModel(application) 
         _uiState.update { it.copy(errorMessage = null) }
     }
 
-    fun submitCameraCapture(jpegBytes: ByteArray) {
+    fun reportCaptureError(message: String) {
+        _uiState.update { it.copy(isSubmitting = false, errorMessage = message) }
+    }
+
+    fun submitCameraCapture(rawJpegBytes: ByteArray) {
         if (_uiState.value.isSubmitting) return
 
         viewModelScope.launch {
@@ -309,12 +622,15 @@ class BioDexViewModel(application: Application) : AndroidViewModel(application) 
                 return@launch
             }
 
+            var uploadedBytes: ByteArray = rawJpegBytes
             val uploadResult = runCatching {
                 withContext(Dispatchers.Default) {
+                    val prepared = CaptureImageProcessor.prepareLiveCapture(rawJpegBytes)
+                    uploadedBytes = prepared.uploadJpegBytes
+
                     val captureId = UUID.randomUUID().toString()
                     val timestampMs = System.currentTimeMillis()
-                    val moireScore = MoireAnalyzer.estimateFromJpeg(jpegBytes)
-                    val imageSha256 = CanonicalPayload.sha256(jpegBytes)
+                    val imageSha256 = CanonicalPayload.sha256(prepared.uploadJpegBytes)
 
                     val canonicalBytes = CanonicalPayload.buildCaptureSigningBytes(
                         captureId = captureId,
@@ -325,7 +641,7 @@ class BioDexViewModel(application: Application) : AndroidViewModel(application) 
                         accuracyMeters = snapshot.accuracyMeters,
                         accelXyz = snapshot.accelXyz,
                         gyroXyz = snapshot.gyroXyz,
-                        moireScore = moireScore,
+                        moireScore = prepared.moireScore,
                         imageSha256 = imageSha256,
                     )
                     val signed = keystoreSigner.signPayload(canonicalBytes)
@@ -333,7 +649,7 @@ class BioDexViewModel(application: Application) : AndroidViewModel(application) 
                     val b64 = Base64.getEncoder()
                     CaptureUploadRequest(
                         userId = _uiState.value.playerId,
-                        imageBase64 = b64.encodeToString(jpegBytes),
+                        imageBase64 = b64.encodeToString(prepared.uploadJpegBytes),
                         metadata = CaptureMetadataDto(
                             captureId = captureId,
                             capturedAtUtcMs = timestampMs,
@@ -347,7 +663,7 @@ class BioDexViewModel(application: Application) : AndroidViewModel(application) 
                                 accelXyz = snapshot.accelXyz.toList(),
                                 gyroXyz = snapshot.gyroXyz.toList(),
                             ),
-                            moireScore = moireScore,
+                            moireScore = prepared.moireScore,
                             imageSha256Base64 = b64.encodeToString(imageSha256),
                             devicePublicKeyBase64 = b64.encodeToString(signed.publicKeySpkiDer),
                             signatureBase64 = b64.encodeToString(signed.signatureDer),
@@ -365,7 +681,7 @@ class BioDexViewModel(application: Application) : AndroidViewModel(application) 
                     onSuccess = { response ->
                         state.copy(
                             isSubmitting = false,
-                            capturedJpegBytes = jpegBytes,
+                            capturedJpegBytes = uploadedBytes,
                             lastCaptureResponse = response,
                             activeBackendUrl = active,
                             backendOnline = true,
@@ -398,5 +714,6 @@ class BioDexViewModel(application: Application) : AndroidViewModel(application) 
     private companion object {
         const val PREFS_NAME = "biodex_prefs"
         const val KEY_CUSTOM_SERVER_URL = "custom_server_url"
+        const val KEY_LAST_EXPLORER_ID = "last_explorer_id"
     }
 }

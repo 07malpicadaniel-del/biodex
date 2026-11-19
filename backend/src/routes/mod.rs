@@ -21,13 +21,19 @@ use tower_http::trace::TraceLayer;
 use uuid::Uuid;
 
 use crate::almanac::{
-    AlmanacFilter, AlmanacItemDto, AlmanacListResponse, get_almanac_entry, list_almanac,
+    AlmanacError, AlmanacFilter, AlmanacItemDto, AlmanacListResponse, NaturaListaDiscoveryResponse,
+    get_almanac_entry, inspect_naturalista_taxon, list_almanac, nearby_naturalista_fauna,
+    search_naturalista_fauna,
 };
 use crate::config::TaxonomyEndpoints;
 use crate::error::ApiError;
-use crate::geo::{GeoClassification, classify_capture_location, parse_taxon_parts, taxon_db_parts};
+use crate::geo::{
+    GeoClassification, classify_capture_location_with_naturalista, parse_taxon_parts,
+    taxon_db_parts,
+};
 use crate::vision::{
-    DevTaxonHint, TaxonomyClassifier, VisionError, VisionIdentification, resolve_biological_traits,
+    DevTaxonHint, TaxonomyClassifier, VisionError, VisionIdentification, naturalista_url_for_taxon,
+    resolve_species_profile, serialize_slug,
 };
 
 const MAX_BODY_BYTES: usize = 10 * 1024 * 1024;
@@ -47,6 +53,8 @@ pub struct AppState {
     pub taxonomy_endpoints: TaxonomyEndpoints,
     /// Maximum allowed anti-Moiré screen detection score.
     pub max_moire_score: f32,
+    /// Enables regional NaturaLista occurrence fallback when a species lacks curated PostGIS ranges.
+    pub enable_live_range_fallback: bool,
 }
 
 /// Incoming JSON payload for `POST /api/v1/captures`.
@@ -111,6 +119,24 @@ pub struct CaptureUploadResponse {
     pub identification: VisionIdentification,
     /// Generated creature card (`None` when discarded).
     pub card: Option<SpeciesCard>,
+    /// Canonical NaturaLista / GBIF reference page URL.
+    #[serde(default)]
+    pub naturalista_url: Option<String>,
+    /// Reference photograph URL from NaturaLista (when available).
+    #[serde(default)]
+    pub image_url: Option<String>,
+    /// Taxonomic class label (`Aves`, `Mammalia`, etc.).
+    #[serde(default)]
+    pub taxonomic_class: Option<String>,
+    /// Biological habitat slug (`terrestrial`, `aerial`, etc.).
+    #[serde(default)]
+    pub habitat: Option<String>,
+    /// IUCN Red List code (`LC`, `VU`, `CR`, etc.).
+    #[serde(default)]
+    pub iucn_status: Option<String>,
+    /// Estimated average adult body mass in grams.
+    #[serde(default)]
+    pub average_mass_grams: Option<u64>,
 }
 
 /// Builds the Phase 1 Axum [`Router`] with body limits and HTTP tracing.
@@ -119,6 +145,18 @@ pub fn router(state: AppState) -> Router {
         .route("/health", get(health_handler))
         .route("/api/v1/captures", post(submit_capture_handler))
         .route("/api/v1/almanac", get(list_almanac_handler))
+        .route(
+            "/api/v1/almanac/naturalista/search",
+            get(search_naturalista_handler),
+        )
+        .route(
+            "/api/v1/almanac/naturalista/nearby",
+            get(nearby_naturalista_handler),
+        )
+        .route(
+            "/api/v1/almanac/naturalista/taxon/{id}",
+            get(inspect_naturalista_handler),
+        )
         .route(
             "/api/v1/almanac/{source}/{taxon_id}",
             get(get_almanac_entry_handler),
@@ -131,6 +169,26 @@ pub fn router(state: AppState) -> Router {
 #[derive(Debug, Deserialize)]
 struct AlmanacEntryQuery {
     user_id: Option<String>,
+    #[serde(default)]
+    dev_mode: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct NaturaListaSearchQuery {
+    q: String,
+    user_id: Option<String>,
+    #[serde(default)]
+    dev_mode: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct NaturaListaNearbyQuery {
+    lat: f64,
+    lng: f64,
+    radius_km: Option<u32>,
+    user_id: Option<String>,
+    #[serde(default)]
+    dev_mode: bool,
 }
 
 async fn list_almanac_handler(
@@ -141,6 +199,72 @@ async fn list_almanac_handler(
         .await
         .map_err(|err| ApiError::internal(err.to_string()))?;
     Ok(Json(response))
+}
+
+async fn search_naturalista_handler(
+    State(state): State<AppState>,
+    Query(query): Query<NaturaListaSearchQuery>,
+) -> Result<Json<NaturaListaDiscoveryResponse>, ApiError> {
+    let response = search_naturalista_fauna(
+        &state.db,
+        &state.http,
+        &state.taxonomy_endpoints.inaturalist_base_url,
+        &query.q,
+        query.user_id.as_deref(),
+        query.dev_mode,
+    )
+    .await
+    .map_err(map_almanac_error)?;
+    Ok(Json(response))
+}
+
+async fn nearby_naturalista_handler(
+    State(state): State<AppState>,
+    Query(query): Query<NaturaListaNearbyQuery>,
+) -> Result<Json<NaturaListaDiscoveryResponse>, ApiError> {
+    let coords = GeoPoint {
+        latitude: query.lat,
+        longitude: query.lng,
+        accuracy_meters: 25.0,
+    };
+    let response = nearby_naturalista_fauna(
+        &state.db,
+        &state.http,
+        &state.taxonomy_endpoints.inaturalist_base_url,
+        coords,
+        query.radius_km.unwrap_or(25),
+        query.user_id.as_deref(),
+        query.dev_mode,
+    )
+    .await
+    .map_err(map_almanac_error)?;
+    Ok(Json(response))
+}
+
+async fn inspect_naturalista_handler(
+    State(state): State<AppState>,
+    AxumPath(inat_id): AxumPath<u64>,
+    Query(query): Query<AlmanacEntryQuery>,
+) -> Result<Json<AlmanacItemDto>, ApiError> {
+    let entry = inspect_naturalista_taxon(
+        &state.db,
+        &state.http,
+        &state.mods,
+        &state.taxonomy_endpoints,
+        inat_id,
+        query.user_id.as_deref(),
+        query.dev_mode,
+    )
+    .await
+    .map_err(map_almanac_error)?
+    .ok_or_else(|| {
+        ApiError::new(
+            StatusCode::NOT_FOUND,
+            "naturalista_taxon_not_found",
+            "species not found on NaturaLista",
+        )
+    })?;
+    Ok(Json(entry))
 }
 
 async fn get_almanac_entry_handler(
@@ -155,16 +279,22 @@ async fn get_almanac_entry_handler(
         )
     })?;
 
-    let entry = get_almanac_entry(&state.db, &state.mods, taxon_id, query.user_id.as_deref())
-        .await
-        .map_err(|err| ApiError::internal(err.to_string()))?
-        .ok_or_else(|| {
-            ApiError::new(
-                StatusCode::NOT_FOUND,
-                "almanac_species_not_found",
-                "species not found in almanac catalog",
-            )
-        })?;
+    let entry = get_almanac_entry(
+        &state.db,
+        &state.mods,
+        taxon_id,
+        query.user_id.as_deref(),
+        query.dev_mode,
+    )
+    .await
+    .map_err(map_almanac_error)?
+    .ok_or_else(|| {
+        ApiError::new(
+            StatusCode::NOT_FOUND,
+            "almanac_species_not_found",
+            "species not found in almanac catalog",
+        )
+    })?;
 
     Ok(Json(entry))
 }
@@ -237,7 +367,7 @@ async fn submit_capture_handler(
         .await
         .map_err(map_vision_error)?;
 
-    let traits = resolve_biological_traits(
+    let profile = resolve_species_profile(
         &state.db,
         &state.http,
         &identification,
@@ -245,6 +375,7 @@ async fn submit_capture_handler(
     )
     .await
     .map_err(map_vision_error)?;
+    let traits = profile.traits;
 
     if identification.scientific_name.is_empty() {
         identification.scientific_name = traits.scientific_name.clone();
@@ -253,10 +384,16 @@ async fn submit_capture_handler(
         identification.common_name = traits.common_name.clone();
     }
 
-    let geo_resolution =
-        classify_capture_location(&state.db, meta.coordinates, identification.taxon_id)
-            .await
-            .map_err(|err| ApiError::internal(err.to_string()))?;
+    let geo_resolution = classify_capture_location_with_naturalista(
+        &state.db,
+        &state.http,
+        &state.taxonomy_endpoints.inaturalist_base_url,
+        meta.coordinates,
+        identification.taxon_id,
+        state.enable_live_range_fallback,
+    )
+    .await
+    .map_err(|err| ApiError::internal(err.to_string()))?;
 
     let (zone_str, card_opt) = match &geo_resolution.classification {
         GeoClassification::Sanctuary { .. } => {
@@ -308,6 +445,10 @@ async fn submit_capture_handler(
         (StatusCode::OK, "discarded".to_string())
     };
 
+    let iucn_str = serialize_slug(&traits.iucn_status);
+    let habitat_str = serialize_slug(&traits.habitat);
+    let naturalista_url = naturalista_url_for_taxon(identification.taxon_id);
+
     Ok((
         status_code,
         Json(CaptureUploadResponse {
@@ -317,6 +458,12 @@ async fn submit_capture_handler(
             classification: geo_resolution.classification,
             identification,
             card: card_opt,
+            naturalista_url: Some(naturalista_url),
+            image_url: profile.media.image_url,
+            taxonomic_class: Some(traits.taxonomic_class),
+            habitat: Some(habitat_str),
+            iucn_status: Some(iucn_str),
+            average_mass_grams: Some(traits.average_mass_grams),
         }),
     ))
 }
@@ -429,6 +576,11 @@ fn map_vision_error(err: VisionError) -> ApiError {
             "no_species_detected",
             err.to_string(),
         ),
+        VisionError::NonFaunaDetected { .. } => ApiError::new(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "non_fauna_detected",
+            err.to_string(),
+        ),
         VisionError::TaxonomicRankTooBroad { .. } => ApiError::new(
             StatusCode::UNPROCESSABLE_ENTITY,
             "taxonomic_rank_too_broad",
@@ -445,5 +597,17 @@ fn map_vision_error(err: VisionError) -> ApiError {
             err.to_string(),
         ),
         VisionError::Database(db_err) => ApiError::internal(db_err.to_string()),
+    }
+}
+
+fn map_almanac_error(err: AlmanacError) -> ApiError {
+    match err {
+        AlmanacError::InvalidInput(msg) => ApiError::bad_request("invalid_query", msg),
+        AlmanacError::Geo(geo_err) => {
+            ApiError::bad_request("invalid_coordinates", geo_err.to_string())
+        }
+        AlmanacError::Vision(vision_err) => map_vision_error(vision_err),
+        AlmanacError::Taxonomy(tax_err) => ApiError::internal(tax_err.to_string()),
+        AlmanacError::Database(db_err) => ApiError::internal(db_err.to_string()),
     }
 }

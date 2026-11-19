@@ -102,6 +102,9 @@ pub struct BackendConfig {
     pub google_ai_api_key: Option<String>,
     /// Allows explicit `dev_taxon_hint` fallback when no CV token is configured (dev/test only).
     pub allow_dev_taxon_hint: bool,
+    /// Falls back to NaturaLista/iNaturalist regional observations when no explicit PostGIS
+    /// `species_wild_ranges` polygon exists for a captured species.
+    pub enable_naturalista_range_fallback: bool,
 }
 
 impl BackendConfig {
@@ -169,6 +172,15 @@ impl BackendConfig {
             "1" | "true" | "yes"
         );
 
+        let enable_naturalista_range_fallback = match env::var("ENABLE_NATURALISTA_RANGE_FALLBACK")
+        {
+            Ok(raw) => !matches!(
+                raw.trim().to_ascii_lowercase().as_str(),
+                "0" | "false" | "no"
+            ),
+            Err(_) => vision_provider == VisionProviderKind::INaturalist,
+        };
+
         Ok(Self {
             database_url,
             bind_addr,
@@ -182,6 +194,7 @@ impl BackendConfig {
             overpass_default_bbox,
             google_ai_api_key,
             allow_dev_taxon_hint,
+            enable_naturalista_range_fallback,
         })
     }
 }
