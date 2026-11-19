@@ -57,6 +57,7 @@ fun AlmanacScreen(
     uiState: BioDexUiState,
     onSearchChange: (String) -> Unit,
     onSelectCategory: (AlmanacCategoryFilter) -> Unit,
+    onToggleOnlyCaptured: () -> Unit,
     onRefresh: () -> Unit,
     onOpenDetail: (AlmanacItemDto) -> Unit,
     modifier: Modifier = Modifier,
@@ -95,7 +96,7 @@ fun AlmanacScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Almanaque BioDex",
+                            text = "Colección y Almanaque",
                             style = MaterialTheme.typography.titleLarge,
                             color = BioDexColors.TextPrimary,
                             fontWeight = FontWeight.Bold,
@@ -169,13 +170,24 @@ fun AlmanacScreen(
             ),
         )
 
-        // Category filters
+        // Category & captured filters
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            FilterChip(
+                selected = uiState.almanacOnlyCaptured,
+                onClick = onToggleOnlyCaptured,
+                label = { Text("Capturadas (${uiState.almanacDiscoveredCount})") },
+                colors = FilterChipDefaults.filterChipColors(
+                    containerColor = BioDexColors.Surface,
+                    labelColor = BioDexColors.TextSecondary,
+                    selectedContainerColor = BioDexColors.Warning,
+                    selectedLabelColor = BioDexColors.OnPrimary,
+                ),
+            )
             AlmanacCategoryFilter.entries.forEach { cat ->
                 FilterChip(
                     selected = uiState.almanacCategoryFilter == cat,

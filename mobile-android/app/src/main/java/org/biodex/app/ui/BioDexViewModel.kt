@@ -1,6 +1,7 @@
 package org.biodex.app.ui
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
@@ -40,14 +41,20 @@ enum class AlmanacCategoryFilter(
 
 enum class BioDexTab {
     Scanner,
-    Almanac,
+    Collection,
+    Battle,
+    Friends,
+    Profile,
 }
 
 data class BioDexUiState(
     val activeTab: BioDexTab = BioDexTab.Scanner,
+    val playerId: String = "android-field-explorer",
     val telemetry: TelemetrySnapshot = TelemetrySnapshot(),
     val backendOnline: Boolean? = null,
     val backendStatusText: String = "Verificando servidor...",
+    val activeBackendUrl: String = BuildConfig.API_BASE_URL,
+    val customServerUrlInput: String = "",
     val isSubmitting: Boolean = false,
     val capturedJpegBytes: ByteArray? = null,
     val lastCaptureResponse: CaptureUploadResponse? = null,
@@ -58,6 +65,7 @@ data class BioDexUiState(
     val almanacEntries: List<AlmanacItemDto> = emptyList(),
     val almanacSearchQuery: String = "",
     val almanacCategoryFilter: AlmanacCategoryFilter = AlmanacCategoryFilter.All,
+    val almanacOnlyCaptured: Boolean = false,
     val selectedAlmanacEntry: AlmanacItemDto? = null,
     val almanacError: String? = null,
 ) {
@@ -66,22 +74,29 @@ data class BioDexUiState(
             val query = almanacSearchQuery.trim().lowercase()
             val categoryKey = almanacCategoryFilter.apiKey
             return almanacEntries.filter { item ->
+                val matchesCaptured = !almanacOnlyCaptured || item.discovered
                 val matchesCategory = categoryKey == null || item.category == categoryKey
                 val matchesQuery = query.isEmpty() ||
                     item.scientificName.lowercase().contains(query) ||
                     (item.commonName?.lowercase()?.contains(query) == true) ||
                     item.summary.lowercase().contains(query)
-                matchesCategory && matchesQuery
+                matchesCaptured && matchesCategory && matchesQuery
             }
         }
+
+    val totalCapturesCount: Long
+        get() = almanacEntries.sumOf { it.captureCount }
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is BioDexUiState) return false
         return activeTab == other.activeTab &&
+            playerId == other.playerId &&
             telemetry == other.telemetry &&
             backendOnline == other.backendOnline &&
             backendStatusText == other.backendStatusText &&
+            activeBackendUrl == other.activeBackendUrl &&
+            customServerUrlInput == other.customServerUrlInput &&
             isSubmitting == other.isSubmitting &&
             capturedJpegBytes.contentEquals(other.capturedJpegBytes) &&
             lastCaptureResponse == other.lastCaptureResponse &&
@@ -92,15 +107,19 @@ data class BioDexUiState(
             almanacEntries == other.almanacEntries &&
             almanacSearchQuery == other.almanacSearchQuery &&
             almanacCategoryFilter == other.almanacCategoryFilter &&
+            almanacOnlyCaptured == other.almanacOnlyCaptured &&
             selectedAlmanacEntry == other.selectedAlmanacEntry &&
             almanacError == other.almanacError
     }
 
     override fun hashCode(): Int {
         var result = activeTab.hashCode()
+        result = 31 * result + playerId.hashCode()
         result = 31 * result + telemetry.hashCode()
         result = 31 * result + (backendOnline?.hashCode() ?: 0)
         result = 31 * result + backendStatusText.hashCode()
+        result = 31 * result + activeBackendUrl.hashCode()
+        result = 31 * result + customServerUrlInput.hashCode()
         result = 31 * result + isSubmitting.hashCode()
         result = 31 * result + (capturedJpegBytes?.contentHashCode() ?: 0)
         result = 31 * result + (lastCaptureResponse?.hashCode() ?: 0)
@@ -111,6 +130,7 @@ data class BioDexUiState(
         result = 31 * result + almanacEntries.hashCode()
         result = 31 * result + almanacSearchQuery.hashCode()
         result = 31 * result + almanacCategoryFilter.hashCode()
+        result = 31 * result + almanacOnlyCaptured.hashCode()
         result = 31 * result + (selectedAlmanacEntry?.hashCode() ?: 0)
         result = 31 * result + (almanacError?.hashCode() ?: 0)
         return result
@@ -118,12 +138,23 @@ data class BioDexUiState(
 }
 
 class BioDexViewModel(application: Application) : AndroidViewModel(application) {
-    private val apiClient = BioDexApiClient(BuildConfig.API_BASE_URL)
+    private val prefs = application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val savedCustomUrl = prefs.getString(KEY_CUSTOM_SERVER_URL, "")?.trim().orEmpty()
+
+    private val apiClient = BioDexApiClient(
+        primaryUrl = BuildConfig.API_BASE_URL,
+        fallbackLanUrl = BuildConfig.DEBUG_LAN_API_URL,
+        customOverrideUrl = savedCustomUrl.ifEmpty { null },
+    )
     private val keystoreSigner = HardwareKeystoreSigner()
     private val telemetryTracker = SensorTelemetryTracker(application)
-    private val playerId = "android-field-explorer"
 
-    private val _uiState = MutableStateFlow(BioDexUiState())
+    private val _uiState = MutableStateFlow(
+        BioDexUiState(
+            activeBackendUrl = apiClient.activeBaseUrl(),
+            customServerUrlInput = savedCustomUrl,
+        ),
+    )
     val uiState: StateFlow<BioDexUiState> = _uiState.asStateFlow()
 
     init {
@@ -133,13 +164,14 @@ class BioDexViewModel(application: Application) : AndroidViewModel(application) 
                 _uiState.update { it.copy(telemetry = snap) }
             }
         }
-        refreshBackendHealth()
-        refreshAlmanac()
+        refreshConnectionAndAlmanac()
     }
 
     fun selectTab(tab: BioDexTab) {
         _uiState.update { it.copy(activeTab = tab, selectedAlmanacEntry = null) }
-        if (tab == BioDexTab.Almanac && _uiState.value.almanacEntries.isEmpty()) {
+        if ((tab == BioDexTab.Collection || tab == BioDexTab.Battle || tab == BioDexTab.Profile) &&
+            _uiState.value.almanacEntries.isEmpty()
+        ) {
             refreshAlmanac()
         }
     }
@@ -148,15 +180,16 @@ class BioDexViewModel(application: Application) : AndroidViewModel(application) 
         telemetryTracker.startLocationUpdates()
     }
 
-    fun refreshBackendHealth() {
+    fun refreshConnectionAndAlmanac() {
         viewModelScope.launch {
             val result = apiClient.checkHealth()
             _uiState.update { state ->
                 result.fold(
-                    onSuccess = {
+                    onSuccess = { conn ->
                         state.copy(
                             backendOnline = true,
-                            backendStatusText = "API + PostGIS OK",
+                            activeBackendUrl = conn.activeBaseUrl,
+                            backendStatusText = "API + PostGIS OK (${shortHost(conn.activeBaseUrl)})",
                         )
                     },
                     onFailure = { err ->
@@ -167,29 +200,55 @@ class BioDexViewModel(application: Application) : AndroidViewModel(application) 
                     },
                 )
             }
+            if (result.isSuccess) {
+                refreshAlmanac()
+            }
         }
+    }
+
+    fun refreshBackendHealth() {
+        refreshConnectionAndAlmanac()
+    }
+
+    fun updateCustomServerUrlInput(value: String) {
+        _uiState.update { it.copy(customServerUrlInput = value) }
+    }
+
+    fun applyCustomServerUrl() {
+        val raw = _uiState.value.customServerUrlInput.trim()
+        prefs.edit().putString(KEY_CUSTOM_SERVER_URL, raw).apply()
+        apiClient.setCustomBaseUrl(raw.ifEmpty { null })
+        _uiState.update {
+            it.copy(
+                activeBackendUrl = apiClient.activeBaseUrl(),
+                backendStatusText = "Probando servidor...",
+            )
+        }
+        refreshConnectionAndAlmanac()
     }
 
     fun refreshAlmanac() {
         viewModelScope.launch {
             _uiState.update { it.copy(almanacLoading = true, almanacError = null) }
-            val result = apiClient.fetchAlmanac(userId = playerId)
+            val result = apiClient.fetchAlmanac(userId = _uiState.value.playerId)
             _uiState.update { state ->
                 result.fold(
                     onSuccess = { almanac ->
+                        val active = apiClient.activeBaseUrl()
                         state.copy(
                             almanacLoading = false,
                             almanacTotalSpecies = almanac.totalSpecies,
                             almanacDiscoveredCount = almanac.discoveredCount,
                             almanacEntries = almanac.entries,
+                            activeBackendUrl = active,
                             backendOnline = true,
-                            backendStatusText = "API + PostGIS OK",
+                            backendStatusText = "API + PostGIS OK (${shortHost(active)})",
                         )
                     },
                     onFailure = { err ->
                         state.copy(
                             almanacLoading = false,
-                            almanacError = err.message ?: "No se pudo cargar el almanaque",
+                            almanacError = err.message ?: "No se pudo cargar la colección",
                         )
                     },
                 )
@@ -203,6 +262,10 @@ class BioDexViewModel(application: Application) : AndroidViewModel(application) 
 
     fun selectAlmanacCategory(filter: AlmanacCategoryFilter) {
         _uiState.update { it.copy(almanacCategoryFilter = filter) }
+    }
+
+    fun toggleAlmanacOnlyCaptured() {
+        _uiState.update { it.copy(almanacOnlyCaptured = !it.almanacOnlyCaptured) }
     }
 
     fun openAlmanacDetail(entry: AlmanacItemDto) {
@@ -269,7 +332,7 @@ class BioDexViewModel(application: Application) : AndroidViewModel(application) 
 
                     val b64 = Base64.getEncoder()
                     CaptureUploadRequest(
-                        userId = playerId,
+                        userId = _uiState.value.playerId,
                         imageBase64 = b64.encodeToString(jpegBytes),
                         metadata = CaptureMetadataDto(
                             captureId = captureId,
@@ -297,13 +360,16 @@ class BioDexViewModel(application: Application) : AndroidViewModel(application) 
             )
 
             _uiState.update { state ->
+                val active = apiClient.activeBaseUrl()
                 uploadResult.fold(
                     onSuccess = { response ->
                         state.copy(
                             isSubmitting = false,
                             capturedJpegBytes = jpegBytes,
                             lastCaptureResponse = response,
+                            activeBackendUrl = active,
                             backendOnline = true,
+                            backendStatusText = "API + PostGIS OK (${shortHost(active)})",
                         )
                     },
                     onFailure = { err ->
@@ -324,5 +390,13 @@ class BioDexViewModel(application: Application) : AndroidViewModel(application) 
     override fun onCleared() {
         telemetryTracker.stop()
         super.onCleared()
+    }
+
+    private fun shortHost(url: String): String =
+        url.removePrefix("http://").removePrefix("https://")
+
+    private companion object {
+        const val PREFS_NAME = "biodex_prefs"
+        const val KEY_CUSTOM_SERVER_URL = "custom_server_url"
     }
 }

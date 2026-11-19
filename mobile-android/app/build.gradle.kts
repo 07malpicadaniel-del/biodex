@@ -1,8 +1,35 @@
+import java.net.Inet4Address
+import java.net.NetworkInterface
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
 }
+
+fun detectLocalLanApiUrl(): String {
+    return runCatching {
+        NetworkInterface.getNetworkInterfaces()?.toList()
+            ?.asSequence()
+            ?.filter { it.isUp && !it.isLoopback && !it.isVirtual }
+            ?.filter { iface ->
+                val n = iface.name
+                !n.startsWith("docker") && !n.startsWith("br-") &&
+                    !n.startsWith("tailscale") && !n.startsWith("tun") &&
+                    !n.startsWith("veth")
+            }
+            ?.flatMap { it.inetAddresses.toList().asSequence() }
+            ?.filterIsInstance<Inet4Address>()
+            ?.firstOrNull { addr ->
+                val ip = addr.hostAddress ?: return@firstOrNull false
+                ip.startsWith("192.168.") || ip.startsWith("10.")
+            }
+            ?.hostAddress
+            ?.let { "http://$it:3000" }
+    }.getOrNull() ?: "http://127.0.0.1:3000"
+}
+
+val debugLanApiUrl = detectLocalLanApiUrl()
 
 android {
     namespace = "org.biodex.app"
@@ -17,11 +44,13 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "API_BASE_URL", "\"http://127.0.0.1:3000\"")
+        buildConfigField("String", "DEBUG_LAN_API_URL", "\"$debugLanApiUrl\"")
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            buildConfigField("String", "DEBUG_LAN_API_URL", "\"\"")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
