@@ -90,7 +90,7 @@ Los colaboradores pueden enviar Pull Requests o distribuir carpetas con archivos
 - [x] Implementar el generador procedural de estadísticas, verificación ECDSA P-256 y parser de packs `.toml` (overrides + Almanaque).
 - [x] Levantar backend en Rust (`Axum` + `Tokio` + `SQLx`) + PostgreSQL/PostGIS con validación de polígonos (prioridad `Santuario` sobre `Salvaje`) y endpoints del Almanaque (`/api/v1/almanac`).
 - [x] Prototipo Android (CameraX en vivo limpio sin galería ni especies de prueba + firma Keystore P-256 + pestaña Almanaque de 24 especies básicas con insignia de capturado).
-- [ ] **Siguiente instrucción pendiente:** Conectar las APIs de visión/identificación taxonómica provistas por el Arquitecto en `backend/src/vision/` y validar el flujo en vivo con reconocimiento real.
+- [x] Pipeline real de visión taxonómica (iNaturalist CV + normalización `subspecies -> species` + rechazo `taxonomic_rank_too_broad`), enriquecimiento automático (GBIF + Wikidata), modo `mock` offline e ingesta geoespacial desde OSM Overpass (`sync-geozones` → `geo_zones`).
 
 ### Fase 2 — Combate 1v1 e Intercambios
 

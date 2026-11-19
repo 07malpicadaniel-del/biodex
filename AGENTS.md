@@ -138,6 +138,9 @@ docker compose up -d postgres
 # Ejecutar migraciones con sqlx-cli (requiere DATABASE_URL configurado)
 sqlx migrate run --source backend/migrations
 
+# Importar zonas reales (zoos, acuarios, reservas naturales) desde OpenStreetMap Overpass
+cargo run --bin sync-geozones -- --region veracruz
+
 # Verificar esquema offline SQLx antes de commit (cuando aplique)
 cargo sqlx prepare --workspace -- --all-targets
 ```

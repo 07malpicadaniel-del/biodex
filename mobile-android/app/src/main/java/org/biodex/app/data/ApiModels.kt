@@ -65,6 +65,8 @@ data class VisionIdentificationDto(
     @SerialName("taxon_id") val taxonId: TaxonIdDto,
     @SerialName("scientific_name") val scientificName: String,
     @SerialName("common_name") val commonName: String? = null,
+    val rank: String? = null,
+    @SerialName("subspecies_label") val subspeciesLabel: String? = null,
     val confidence: Float,
 )
 

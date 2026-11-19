@@ -67,6 +67,7 @@ fun CardResultScreen(
             MintedSpeciesCard(
                 card = card,
                 zoneName = response.classification.zoneName,
+                subspeciesLabel = response.identification.subspeciesLabel,
                 capturedJpegBytes = capturedJpegBytes,
                 borderColor = borderColor,
             )
@@ -95,6 +96,7 @@ fun CardResultScreen(
 private fun MintedSpeciesCard(
     card: SpeciesCardDto,
     zoneName: String?,
+    subspeciesLabel: String?,
     capturedJpegBytes: ByteArray?,
     borderColor: Color,
 ) {
@@ -127,6 +129,13 @@ private fun MintedSpeciesCard(
                         fontStyle = FontStyle.Italic,
                         color = BioDexColors.TextSecondary,
                     )
+                    if (!subspeciesLabel.isNullOrBlank()) {
+                        Text(
+                            text = "Subespecie observada: $subspeciesLabel",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = BioDexColors.Primary,
+                        )
+                    }
                 }
 
                 Box(

@@ -58,8 +58,10 @@ Este documento registra los contratos de datos aprobados por el Arquitecto de So
 
 ---
 
-## 5. Siguiente Instrucción Pendiente: Integración de APIs de Visión
+## 5. Normalización a Especie Base (Species Rollup), Visión e Ingesta Overpass
 
-- El escáner en `mobile-android` opera sin paneles ni especies de testeo; al capturar una foto en vivo, envía la imagen firmada por hardware (`ECDSA P-256`) a `POST /api/v1/captures`.
-- **Punto de integración listo:** `backend/src/vision/mod.rs` (`TaxonomyClassifier` + `INaturalistVisionClient`) y configuración en `backend/src/config.rs` / `.env.example`.
-- **Acción pendiente:** Recibir las credenciales/APIs de visión seleccionadas por el Arquitecto (ej. iNaturalist CV / BioCLIP / proveedor externo) y conectarlas en `backend/src/vision/` + pruebas de integración.
+- **Unidad atómica (`TaxonomicRank::Species`):** Todo `VisionIdentification` y registro en `species_catalog` se normaliza al rango `species` (binomial). Si iNaturalist detecta `subspecies`, `variety` o `form`, se resuelve el ancestro de rango `species` vía `/v1/taxa/{id}?locale=es` y se conserva `captures.subspecies_label` solo como dato informativo.
+- **Umbral de rango mínimo:** Si la visión solo alcanza `genus`, `family` o rango superior, la API rechaza la captura con HTTP `422` (`taxonomic_rank_too_broad`).
+- **Enriquecimiento automático:** Especies fuera del Almanaque base se enriquecen consultando iNaturalist + GBIF (`/species/match` + `/iucnRedListCategory`) + Wikidata (`P2067` masa adulta, `P141` UICN, descripción en español) y se cachean en `species_catalog` (`is_core_almanac = FALSE`).
+- **Modo Mock offline:** `VISION_PROVIDER=mock` usa `MockVisionClient` con respuestas JSON cacheadas para pruebas deterministas sin red.
+- **Ingesta geoespacial Overpass (`geo_zones`):** Migración `backend/migrations/0003_geozones_and_subspecies.sql` y binario `cargo run --bin sync-geozones` importan polígonos reales de zoológicos/acuarios (`sanctuary` → 85%) y reservas naturales (`nature_reserve` → `Wild` 100%) mediante `UPSERT` por `(osm_type, osm_id)`.

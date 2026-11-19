@@ -23,6 +23,7 @@ use uuid::Uuid;
 use crate::almanac::{
     AlmanacFilter, AlmanacItemDto, AlmanacListResponse, get_almanac_entry, list_almanac,
 };
+use crate::config::TaxonomyEndpoints;
 use crate::error::ApiError;
 use crate::geo::{GeoClassification, classify_capture_location, parse_taxon_parts, taxon_db_parts};
 use crate::vision::{
@@ -42,6 +43,8 @@ pub struct AppState {
     pub mods: Arc<ModRegistry>,
     /// Taxonomic vision identification provider.
     pub vision: Arc<dyn TaxonomyClassifier>,
+    /// External taxonomy/enrichment endpoints (iNaturalist, GBIF, Wikidata).
+    pub taxonomy_endpoints: TaxonomyEndpoints,
     /// Maximum allowed anti-Moiré screen detection score.
     pub max_moire_score: f32,
 }
@@ -234,9 +237,14 @@ async fn submit_capture_handler(
         .await
         .map_err(map_vision_error)?;
 
-    let traits = resolve_biological_traits(&state.db, &state.http, &identification)
-        .await
-        .map_err(map_vision_error)?;
+    let traits = resolve_biological_traits(
+        &state.db,
+        &state.http,
+        &identification,
+        &state.taxonomy_endpoints,
+    )
+    .await
+    .map_err(map_vision_error)?;
 
     if identification.scientific_name.is_empty() {
         identification.scientific_name = traits.scientific_name.clone();
@@ -245,23 +253,23 @@ async fn submit_capture_handler(
         identification.common_name = traits.common_name.clone();
     }
 
-    let classification =
+    let geo_resolution =
         classify_capture_location(&state.db, meta.coordinates, identification.taxon_id)
             .await
             .map_err(|err| ApiError::internal(err.to_string()))?;
 
-    let (zone_str, sanctuary_zone_id, card_opt) = match &classification {
-        GeoClassification::Sanctuary { zone_id, .. } => {
+    let (zone_str, card_opt) = match &geo_resolution.classification {
+        GeoClassification::Sanctuary { .. } => {
             let base_card = generate_card(&traits, CaptureVariant::Sanctuary)?;
             let final_card = state.mods.apply_to_card(base_card);
-            ("sanctuary", Some(*zone_id), Some(final_card))
+            ("sanctuary", Some(final_card))
         }
         GeoClassification::Wild => {
             let base_card = generate_card(&traits, CaptureVariant::Wild)?;
             let final_card = state.mods.apply_to_card(base_card);
-            ("wild", None, Some(final_card))
+            ("wild", Some(final_card))
         }
-        GeoClassification::OutOfRange => ("discarded", None, None),
+        GeoClassification::OutOfRange => ("discarded", None),
     };
 
     let (taxon_source, taxon_external_id) = taxon_db_parts(identification.taxon_id)
@@ -283,9 +291,11 @@ async fn submit_capture_handler(
             captured_at_utc,
             coordinates: meta.coordinates,
             zone_classification: zone_str,
-            sanctuary_zone_id,
+            sanctuary_zone_id: geo_resolution.sanctuary_zone_id,
+            geo_zone_id: geo_resolution.geo_zone_id,
             taxon_source,
             taxon_external_id,
+            subspecies_label: identification.subspecies_label.as_deref(),
             vision_confidence: identification.confidence,
             generated_card: card_json,
         },
@@ -304,7 +314,7 @@ async fn submit_capture_handler(
             status: status_label,
             capture_record_id: record_id,
             capture_id: meta.capture_id,
-            classification,
+            classification: geo_resolution.classification,
             identification,
             card: card_opt,
         }),
@@ -320,8 +330,10 @@ struct CaptureInsert<'a> {
     coordinates: GeoPoint,
     zone_classification: &'a str,
     sanctuary_zone_id: Option<Uuid>,
+    geo_zone_id: Option<Uuid>,
     taxon_source: &'a str,
     taxon_external_id: i64,
+    subspecies_label: Option<&'a str>,
     vision_confidence: f32,
     generated_card: Option<serde_json::Value>,
 }
@@ -331,13 +343,13 @@ async fn insert_capture_record(pool: &PgPool, row: CaptureInsert<'_>) -> Result<
         r#"
         INSERT INTO captures (
             capture_id, user_id, device_public_key, image_sha256, captured_at_utc,
-            location, zone_classification, sanctuary_zone_id,
-            taxon_source, taxon_external_id, vision_confidence, generated_card
+            location, zone_classification, sanctuary_zone_id, geo_zone_id,
+            taxon_source, taxon_external_id, subspecies_label, vision_confidence, generated_card
         )
         VALUES (
             $1, $2, $3, $4, $5,
-            ST_SetSRID(ST_MakePoint($6, $7), 4326)::geography, $8, $9,
-            $10, $11, $12, $13
+            ST_SetSRID(ST_MakePoint($6, $7), 4326)::geography, $8, $9, $10,
+            $11, $12, $13, $14, $15
         )
         RETURNING id
         "#,
@@ -351,8 +363,10 @@ async fn insert_capture_record(pool: &PgPool, row: CaptureInsert<'_>) -> Result<
     .bind(row.coordinates.latitude)
     .bind(row.zone_classification)
     .bind(row.sanctuary_zone_id)
+    .bind(row.geo_zone_id)
     .bind(row.taxon_source)
     .bind(row.taxon_external_id)
+    .bind(row.subspecies_label)
     .bind(row.vision_confidence)
     .bind(row.generated_card)
     .fetch_one(pool)
@@ -410,7 +424,17 @@ fn map_vision_error(err: VisionError) -> ApiError {
             "vision_not_configured",
             err.to_string(),
         ),
-        VisionError::NoSpeciesDetected | VisionError::UnknownTaxon(_) => ApiError::new(
+        VisionError::NoSpeciesDetected => ApiError::new(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "no_species_detected",
+            err.to_string(),
+        ),
+        VisionError::TaxonomicRankTooBroad { .. } => ApiError::new(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "taxonomic_rank_too_broad",
+            err.to_string(),
+        ),
+        VisionError::MissingSpeciesAncestor { .. } | VisionError::UnknownTaxon(_) => ApiError::new(
             StatusCode::UNPROCESSABLE_ENTITY,
             "taxon_unresolved",
             err.to_string(),

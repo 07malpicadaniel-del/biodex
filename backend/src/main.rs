@@ -4,9 +4,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use biodex_backend::almanac::sync_almanac_catalog;
-use biodex_backend::config::BackendConfig;
+use biodex_backend::config::{BackendConfig, VisionProviderKind};
 use biodex_backend::routes::{AppState, router};
-use biodex_backend::vision::INaturalistVisionClient;
+use biodex_backend::vision::{INaturalistVisionClient, MockVisionClient, TaxonomyClassifier};
 use biodex_backend::{load_mods_from_dir, run_migrations};
 use sqlx::postgres::PgPoolOptions;
 use tokio::net::TcpListener;
@@ -40,21 +40,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!(species = synced, "synchronized core almanac catalog");
 
     let http = reqwest::Client::builder()
-        .timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(15))
         .user_agent("BioDex/0.1.0 (Open Source Citizen Science)")
         .build()?;
 
-    let vision = Arc::new(INaturalistVisionClient::new(
-        http.clone(),
-        config.inaturalist_api_token,
-        config.allow_dev_taxon_hint,
-    ));
+    let vision: Arc<dyn TaxonomyClassifier> = match config.vision_provider {
+        VisionProviderKind::INaturalist => Arc::new(INaturalistVisionClient::new(
+            http.clone(),
+            config.inaturalist_api_token,
+            config.endpoints.inaturalist_base_url.clone(),
+            config.vision_min_confidence,
+            config.allow_dev_taxon_hint,
+        )),
+        VisionProviderKind::Mock => Arc::new(MockVisionClient::default_cached(
+            config.vision_min_confidence,
+        )),
+    };
+
+    tracing::info!(provider = ?config.vision_provider, "configured vision classifier");
 
     let state = AppState {
         db: pool,
         http,
         mods,
         vision,
+        taxonomy_endpoints: config.endpoints,
         max_moire_score: config.max_moire_score,
     };
 

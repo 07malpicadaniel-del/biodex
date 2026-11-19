@@ -8,6 +8,14 @@ description = "Axum + PostGIS API server for BioDex capture validation, taxonomy
 [lints]
 workspace = true
 
+[[bin]]
+name = "biodex-backend"
+path = "src/main.rs"
+
+[[bin]]
+name = "sync-geozones"
+path = "src/bin/sync_geozones.rs"
+
 [dependencies]
 axum = "0.8"
 base64 = "0.22"

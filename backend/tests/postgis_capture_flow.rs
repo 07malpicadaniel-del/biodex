@@ -13,10 +13,14 @@ use axum::http::{Request, StatusCode};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use biodex_backend::almanac::{AlmanacItemDto, AlmanacListResponse, sync_almanac_catalog};
+use biodex_backend::config::TaxonomyEndpoints;
 use biodex_backend::load_mods_from_dir;
 use biodex_backend::routes::{AppState, CaptureUploadResponse, HealthResponse, router};
 use biodex_backend::run_migrations;
-use biodex_backend::vision::{DevTaxonHint, TaxonomyClassifier, VisionError, VisionIdentification};
+use biodex_backend::vision::{
+    DevTaxonHint, MockVisionClient, TaxonomicRank, TaxonomyClassifier, VisionError,
+    VisionIdentification,
+};
 use biodex_core::crypto::{CaptureMetadata, CaptureSource, GeoPoint, ImuReading};
 use biodex_core::taxonomy::{CaptureVariant, TaxonId};
 use p256::ecdsa::signature::Signer;
@@ -46,6 +50,8 @@ impl TaxonomyClassifier for MockVisionClassifier {
                 taxon_id: self.taxon_id,
                 scientific_name: self.scientific_name.to_string(),
                 common_name: None,
+                rank: TaxonomicRank::Species,
+                subspecies_label: None,
                 confidence: 0.96,
             })
         })
@@ -85,8 +91,7 @@ async fn seed_test_world(pool: &PgPool) -> (Uuid, Uuid) {
     .await
     .unwrap();
 
-    // Seed an overlapping Sanctuary zone and Wild range around (lon = -96.13, lat = 19.19),
-    // and ensure Wild range extends further east to (lon = -95.50, lat = 19.19).
+    // Seed an overlapping Sanctuary zone and Wild range in isolated synthetic test coordinates (lon 1.0..2.5, lat 1.0..2.5).
     let sanctuary_id = Uuid::parse_str("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa").unwrap();
     let wild_id = Uuid::parse_str("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb").unwrap();
 
@@ -97,11 +102,11 @@ async fn seed_test_world(pool: &PgPool) -> (Uuid, Uuid) {
             $1,
             'Acuario de Prueba PostGIS',
             'aquarium',
-            ST_Multi(ST_GeomFromText('POLYGON((-96.20 19.10, -96.05 19.10, -96.05 19.25, -96.20 19.25, -96.20 19.10))', 4326)),
+            ST_Multi(ST_GeomFromText('POLYGON((1.10 1.10, 1.25 1.10, 1.25 1.25, 1.10 1.25, 1.10 1.10))', 4326)),
             'integration-test',
             TRUE
         )
-        ON CONFLICT (id) DO NOTHING
+        ON CONFLICT (id) DO UPDATE SET boundary = EXCLUDED.boundary
         "#,
     )
     .bind(sanctuary_id)
@@ -116,10 +121,10 @@ async fn seed_test_world(pool: &PgPool) -> (Uuid, Uuid) {
             $1,
             'gbif',
             5189893,
-            ST_Multi(ST_GeomFromText('POLYGON((-96.30 19.00, -95.00 19.00, -95.00 19.40, -96.30 19.40, -96.30 19.00))', 4326)),
+            ST_Multi(ST_GeomFromText('POLYGON((1.00 1.00, 2.50 1.00, 2.50 1.40, 1.00 1.40, 1.00 1.00))', 4326)),
             'integration-test'
         )
-        ON CONFLICT (id) DO NOTHING
+        ON CONFLICT (id) DO UPDATE SET range_geom = EXCLUDED.range_geom
         "#,
     )
     .bind(wild_id)
@@ -143,6 +148,7 @@ fn build_app(pool: PgPool) -> Router {
         http: reqwest::Client::new(),
         mods,
         vision,
+        taxonomy_endpoints: TaxonomyEndpoints::default(),
         max_moire_score: 0.35,
     })
 }
@@ -254,8 +260,8 @@ async fn capture_flow_enforces_sanctuary_priority_wild_discard_and_security() {
         &sanctuary_cid,
         CaptureSource::CameraXLive,
         GeoPoint {
-            latitude: 19.19,
-            longitude: -96.13,
+            latitude: 1.19,
+            longitude: 1.15,
             accuracy_meters: 5.0,
         },
         false,
@@ -293,8 +299,8 @@ async fn capture_flow_enforces_sanctuary_priority_wild_discard_and_security() {
         &sanctuary_cid,
         CaptureSource::CameraXLive,
         GeoPoint {
-            latitude: 19.19,
-            longitude: -96.13,
+            latitude: 1.19,
+            longitude: 1.15,
             accuracy_meters: 5.0,
         },
         false,
@@ -320,8 +326,8 @@ async fn capture_flow_enforces_sanctuary_priority_wild_discard_and_security() {
         &wild_cid,
         CaptureSource::CameraXLive,
         GeoPoint {
-            latitude: 19.19,
-            longitude: -95.50,
+            latitude: 1.19,
+            longitude: 2.10,
             accuracy_meters: 5.0,
         },
         false,
@@ -476,6 +482,7 @@ async fn almanac_endpoint_lists_24_basic_species_filters_and_tracks_discovery() 
             taxon_id: TaxonId::INaturalist(26_777),
             scientific_name: "Ambystoma mexicanum",
         }),
+        taxonomy_endpoints: TaxonomyEndpoints::default(),
         max_moire_score: 0.35,
     });
 
@@ -576,4 +583,287 @@ async fn almanac_endpoint_lists_24_basic_species_filters_and_tracks_discovery() 
         .await
         .unwrap();
     assert_eq!(not_found_resp.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn subspecies_rollup_enriches_new_species_and_respects_geozones() {
+    use axum::routing::get;
+    use sqlx::Row;
+
+    let pool = setup_test_db().await;
+    let mods_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../mods");
+    let mods = Arc::new(load_mods_from_dir(&mods_dir).unwrap());
+
+    // Ensure Panthera tigris (iNat 41967) starts uncached so we test full offline enrichment.
+    sqlx::query("DELETE FROM species_catalog WHERE taxon_source = 'i_naturalist' AND taxon_external_id = 41967")
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    // Seed an OSM nature reserve + overlapping sanctuary in geo_zones at isolated synthetic coords (3.0..3.5).
+    sqlx::query(
+        r#"
+        INSERT INTO geo_zones (osm_type, osm_id, name, zone_category, zone_type, boundary, region_tag, verified)
+        VALUES
+            (
+                'relation',
+                990001,
+                'Reserva Cofre de Prueba',
+                'nature_reserve',
+                'nature_reserve',
+                ST_Multi(ST_GeomFromText('POLYGON((3.00 3.00, 3.50 3.00, 3.50 3.50, 3.00 3.50, 3.00 3.00))', 4326)),
+                'test-synthetic',
+                TRUE
+            ),
+            (
+                'way',
+                990002,
+                'Zoo de Prueba OSM',
+                'sanctuary',
+                'zoo',
+                ST_Multi(ST_GeomFromText('POLYGON((3.10 3.10, 3.20 3.10, 3.20 3.20, 3.10 3.20, 3.10 3.10))', 4326)),
+                'test-synthetic',
+                TRUE
+            )
+        ON CONFLICT (osm_type, osm_id) DO UPDATE SET boundary = EXCLUDED.boundary
+        "#,
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    // Local loopback HTTP mock for iNaturalist /taxa, GBIF /species/match + IUCN, and Wikidata.
+    let mock_api = Router::new()
+        .route(
+            "/inat/taxa/41967",
+            get(|| async {
+                axum::Json(json!({
+                    "results": [{
+                        "id": 41967,
+                        "name": "Panthera tigris",
+                        "preferred_common_name": "Tigre",
+                        "iconic_taxon_name": "Mammalia"
+                    }]
+                }))
+            }),
+        )
+        .route(
+            "/gbif/species/match",
+            get(|| async {
+                axum::Json(json!({
+                    "usageKey": 5219416,
+                    "speciesKey": 5219416,
+                    "canonicalName": "Panthera tigris",
+                    "phylum": "Chordata",
+                    "class": "Mammalia",
+                    "order": "Carnivora",
+                    "family": "Felidae",
+                    "matchType": "EXACT"
+                }))
+            }),
+        )
+        .route(
+            "/gbif/species/5219416/iucnRedListCategory",
+            get(|| async {
+                axum::Json(json!({
+                    "code": "EN",
+                    "category": "ENDANGERED"
+                }))
+            }),
+        )
+        .route(
+            "/wikidata",
+            get(|axum::extract::RawQuery(q): axum::extract::RawQuery| async move {
+                if q.unwrap_or_default().contains("wbsearchentities") {
+                    axum::Json(json!({ "search": [{ "id": "Q19939" }] }))
+                } else {
+                    axum::Json(json!({
+                        "entities": {
+                            "Q19939": {
+                                "labels": { "es": { "value": "Tigre" } },
+                                "descriptions": { "es": { "value": "especie de mamífero félido" } },
+                                "claims": {
+                                    "P225": [{ "mainsnak": { "datavalue": { "value": "Panthera tigris" } } }],
+                                    "P2067": [{ "mainsnak": { "datavalue": { "value": { "amount": "+150", "unit": "http://www.wikidata.org/entity/Q11570" } } } }]
+                                }
+                            }
+                        }
+                    }))
+                }
+            }),
+        );
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let mock_addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        let _ = axum::serve(listener, mock_api).await;
+    });
+
+    let endpoints = TaxonomyEndpoints {
+        inaturalist_base_url: format!("http://{mock_addr}/inat"),
+        gbif_base_url: format!("http://{mock_addr}/gbif"),
+        wikidata_api_url: format!("http://{mock_addr}/wikidata"),
+    };
+
+    let app = router(AppState {
+        db: pool.clone(),
+        http: reqwest::Client::new(),
+        mods: mods.clone(),
+        vision: Arc::new(MockVisionClient::default_cached(0.35)),
+        taxonomy_endpoints: endpoints.clone(),
+        max_moire_score: 0.35,
+    });
+
+    // 1. Inside nature_reserve outside zoo -> mints Wild Panthera tigris (EN -> Epic), records subspecies_label.
+    let reserve_cid = format!("test-rollup-reserve-{}", Uuid::new_v4());
+    let body_reserve = signed_capture_body(
+        &reserve_cid,
+        CaptureSource::CameraXLive,
+        GeoPoint {
+            latitude: 3.40,
+            longitude: 3.40,
+            accuracy_meters: 5.0,
+        },
+        false,
+        false,
+    );
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/captures")
+                .header("content-type", "application/json")
+                .body(Body::from(body_reserve))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let minted: CaptureUploadResponse = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(minted.identification.scientific_name, "Panthera tigris");
+    assert_eq!(
+        minted.identification.subspecies_label.as_deref(),
+        Some("Panthera tigris tigris")
+    );
+    let card = minted.card.unwrap();
+    assert_eq!(card.scientific_name, "Panthera tigris");
+    assert_eq!(card.variant, CaptureVariant::Wild);
+    assert_eq!(card.rarity, biodex_core::taxonomy::Rarity::Epic);
+
+    // Verify species_catalog cached it with is_core_almanac = FALSE and captures stored subspecies_label + geo_zone_id.
+    let catalog_row = sqlx::query(
+        "SELECT average_mass_grams, iucn_status, is_core_almanac FROM species_catalog WHERE taxon_source = 'i_naturalist' AND taxon_external_id = 41967",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        catalog_row.try_get::<i64, _>("average_mass_grams").unwrap(),
+        150_000
+    );
+    assert_eq!(
+        catalog_row.try_get::<String, _>("iucn_status").unwrap(),
+        "EN"
+    );
+    assert!(!catalog_row.try_get::<bool, _>("is_core_almanac").unwrap());
+
+    let cap_row =
+        sqlx::query("SELECT subspecies_label, geo_zone_id FROM captures WHERE capture_id = $1")
+            .bind(&reserve_cid)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        cap_row
+            .try_get::<Option<String>, _>("subspecies_label")
+            .unwrap()
+            .as_deref(),
+        Some("Panthera tigris tigris")
+    );
+    assert!(
+        cap_row
+            .try_get::<Option<Uuid>, _>("geo_zone_id")
+            .unwrap()
+            .is_some()
+    );
+
+    // 2. Inside overlapping zoo in geo_zones -> Sanctuary takes priority over nature_reserve.
+    let zoo_cid = format!("test-rollup-zoo-{}", Uuid::new_v4());
+    let body_zoo = signed_capture_body(
+        &zoo_cid,
+        CaptureSource::CameraXLive,
+        GeoPoint {
+            latitude: 3.15,
+            longitude: 3.15,
+            accuracy_meters: 5.0,
+        },
+        false,
+        false,
+    );
+    let zoo_resp = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/captures")
+                .header("content-type", "application/json")
+                .body(Body::from(body_zoo))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(zoo_resp.status(), StatusCode::CREATED);
+    let zoo_bytes = axum::body::to_bytes(zoo_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let zoo_minted: CaptureUploadResponse = serde_json::from_slice(&zoo_bytes).unwrap();
+    assert_eq!(zoo_minted.card.unwrap().variant, CaptureVariant::Sanctuary);
+
+    // 3. Broad taxonomic rank (genus) returns 422 taxonomic_rank_too_broad.
+    let broad_app = router(AppState {
+        db: pool,
+        http: reqwest::Client::new(),
+        mods,
+        vision: Arc::new(MockVisionClient::from_cached_json(
+            r#"{"results":[{"combined_score":91.0,"taxon":{"id":41962,"name":"Panthera","rank":"genus","rank_level":20}}]}"#,
+            None,
+            0.35,
+        )),
+        taxonomy_endpoints: endpoints,
+        max_moire_score: 0.35,
+    });
+    let broad_body = signed_capture_body(
+        &format!("test-broad-{}", Uuid::new_v4()),
+        CaptureSource::CameraXLive,
+        GeoPoint {
+            latitude: 3.40,
+            longitude: 3.40,
+            accuracy_meters: 5.0,
+        },
+        false,
+        false,
+    );
+    let broad_resp = broad_app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/captures")
+                .header("content-type", "application/json")
+                .body(Body::from(broad_body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(broad_resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    let broad_text = String::from_utf8(
+        axum::body::to_bytes(broad_resp.into_body(), usize::MAX)
+            .await
+            .unwrap()
+            .to_vec(),
+    )
+    .unwrap();
+    assert!(broad_text.contains("taxonomic_rank_too_broad"));
 }

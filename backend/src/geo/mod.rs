@@ -1,4 +1,6 @@
-//! PostGIS spatial validation (`Sanctuary` vs. `Wild` vs. `OutOfRange`).
+//! PostGIS spatial validation (`Sanctuary` vs. `Wild` vs. `OutOfRange`) and Overpass ingestion.
+
+pub mod overpass;
 
 use biodex_core::crypto::GeoPoint;
 use biodex_core::taxonomy::TaxonId;
@@ -12,19 +14,30 @@ use uuid::Uuid;
 #[serde(tag = "classification", rename_all = "snake_case")]
 pub enum GeoClassification {
     /// Coordinate falls inside a verified zoo, aquarium, or UMA sanctuary polygon.
-    /// Takes priority over wild ranges if both overlap.
+    /// Takes priority over wild ranges and nature reserves if both overlap.
     Sanctuary {
-        /// Matched `sanctuary_zones.id`.
+        /// Matched `sanctuary_zones.id` or `geo_zones.id`.
         zone_id: Uuid,
         /// Registered sanctuary display name.
         zone_name: String,
         /// Sanctuary kind (`zoo`, `aquarium`, or `uma`).
         zone_type: String,
     },
-    /// Coordinate falls inside the species' natural wild distribution range.
+    /// Coordinate falls inside the species' natural wild distribution range or a verified nature reserve.
     Wild,
-    /// Coordinate falls outside any registered sanctuary and outside natural species range.
+    /// Coordinate falls outside any registered sanctuary, wild range, or nature reserve.
     OutOfRange,
+}
+
+/// Full spatial resolution including internal foreign keys for `captures` provenance.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GeoResolution {
+    /// Classification exposed in the HTTP response.
+    pub classification: GeoClassification,
+    /// Populated when matched against legacy/curated `sanctuary_zones`.
+    pub sanctuary_zone_id: Option<Uuid>,
+    /// Populated when matched against OSM/Overpass `geo_zones` (sanctuary or nature reserve).
+    pub geo_zone_id: Option<Uuid>,
 }
 
 /// Errors produced during PostGIS geospatial validation.
@@ -71,14 +84,15 @@ pub fn parse_taxon_parts(source: &str, external_id: i64) -> Option<TaxonId> {
     }
 }
 
-/// Classifies a capture coordinate against verified sanctuary polygons and species wild ranges.
+/// Classifies a capture coordinate against sanctuaries, species wild ranges, and OSM nature reserves.
 ///
-/// Sanctuary polygons have strict priority over natural wild ranges when both overlap.
+/// Sanctuary polygons (`sanctuary_zones` + `geo_zones` sanctuaries) have strict priority over
+/// wild ranges and nature reserves when boundaries overlap.
 pub async fn classify_capture_location(
     pool: &PgPool,
     point: GeoPoint,
     taxon_id: TaxonId,
-) -> Result<GeoClassification, GeoError> {
+) -> Result<GeoResolution, GeoError> {
     if !point.latitude.is_finite()
         || !point.longitude.is_finite()
         || !(-90.0..=90.0).contains(&point.latitude)
@@ -90,15 +104,23 @@ pub async fn classify_capture_location(
         });
     }
 
-    // Sanctuary priority: prevent farming 100% Wild cards inside zoos/aquariums located
-    // within natural biomes. Note ST_MakePoint takes (longitude, latitude).
+    // 1. Sanctuary priority across both curated `sanctuary_zones` and imported `geo_zones`.
     let sanctuary_row = sqlx::query(
         r#"
-        SELECT id, name, zone_type
-        FROM sanctuary_zones
-        WHERE verified = TRUE
-          AND ST_Covers(boundary, ST_SetSRID(ST_MakePoint($1, $2), 4326))
-        ORDER BY name ASC, id ASC
+        SELECT id, name, zone_type, origin
+        FROM (
+            SELECT id, name, zone_type, 'sanctuary_zones' AS origin, 0 AS source_rank
+            FROM sanctuary_zones
+            WHERE verified = TRUE
+              AND ST_Covers(boundary, ST_SetSRID(ST_MakePoint($1, $2), 4326))
+            UNION ALL
+            SELECT id, name, zone_type, 'geo_zones' AS origin, 1 AS source_rank
+            FROM geo_zones
+            WHERE verified = TRUE
+              AND zone_category = 'sanctuary'
+              AND ST_Covers(boundary, ST_SetSRID(ST_MakePoint($1, $2), 4326))
+        ) matched_sanctuaries
+        ORDER BY source_rank ASC, name ASC, id ASC
         LIMIT 1
         "#,
     )
@@ -108,13 +130,25 @@ pub async fn classify_capture_location(
     .await?;
 
     if let Some(row) = sanctuary_row {
-        return Ok(GeoClassification::Sanctuary {
-            zone_id: row.try_get("id")?,
-            zone_name: row.try_get("name")?,
-            zone_type: row.try_get("zone_type")?,
+        let zone_id: Uuid = row.try_get("id")?;
+        let origin: String = row.try_get("origin")?;
+        let (sanctuary_zone_id, geo_zone_id) = if origin == "geo_zones" {
+            (None, Some(zone_id))
+        } else {
+            (Some(zone_id), None)
+        };
+        return Ok(GeoResolution {
+            classification: GeoClassification::Sanctuary {
+                zone_id,
+                zone_name: row.try_get("name")?,
+                zone_type: row.try_get("zone_type")?,
+            },
+            sanctuary_zone_id,
+            geo_zone_id,
         });
     }
 
+    // 2. Species-specific wild distribution polygons.
     let (taxon_source, taxon_external_id) = taxon_db_parts(taxon_id)?;
     let wild_match = sqlx::query(
         r#"
@@ -134,10 +168,44 @@ pub async fn classify_capture_location(
     .await?;
 
     if wild_match.is_some() {
-        return Ok(GeoClassification::Wild);
+        return Ok(GeoResolution {
+            classification: GeoClassification::Wild,
+            sanctuary_zone_id: None,
+            geo_zone_id: None,
+        });
     }
 
-    Ok(GeoClassification::OutOfRange)
+    // 3. Verified OSM nature reserves (`leisure=nature_reserve`) grant Wild in Phase 1.
+    let reserve_row = sqlx::query(
+        r#"
+        SELECT id
+        FROM geo_zones
+        WHERE verified = TRUE
+          AND zone_category = 'nature_reserve'
+          AND ST_Covers(boundary, ST_SetSRID(ST_MakePoint($1, $2), 4326))
+        ORDER BY name ASC, id ASC
+        LIMIT 1
+        "#,
+    )
+    .bind(point.longitude)
+    .bind(point.latitude)
+    .fetch_optional(pool)
+    .await?;
+
+    if let Some(row) = reserve_row {
+        let reserve_id: Uuid = row.try_get("id")?;
+        return Ok(GeoResolution {
+            classification: GeoClassification::Wild,
+            sanctuary_zone_id: None,
+            geo_zone_id: Some(reserve_id),
+        });
+    }
+
+    Ok(GeoResolution {
+        classification: GeoClassification::OutOfRange,
+        sanctuary_zone_id: None,
+        geo_zone_id: None,
+    })
 }
 
 #[cfg(test)]

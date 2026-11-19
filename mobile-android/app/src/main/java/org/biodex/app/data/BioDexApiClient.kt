@@ -79,10 +79,14 @@ class BioDexApiClient(
                         val parsedError = runCatching {
                             json.decodeFromString<ApiErrorEnvelope>(body).error
                         }.getOrNull()
-                        val msg = if (parsedError?.code == "vision_not_configured") {
-                            "Pendiente conectar API de visión en el backend para identificar capturas en vivo."
-                        } else {
-                            parsedError?.let { "${it.code}: ${it.message}" }
+                        val msg = when (parsedError?.code) {
+                            "vision_not_configured" ->
+                                "Pendiente configurar credenciales de visión en el backend."
+                            "taxonomic_rank_too_broad" ->
+                                "Acércate un poco más o enfoca mejor: solo se pudo distinguir un grupo general."
+                            "no_species_detected" ->
+                                "No se identificó ninguna especie con suficiente claridad. Intenta otra toma."
+                            else -> parsedError?.let { "${it.code}: ${it.message}" }
                                 ?: "HTTP ${resp.code}: $body"
                         }
                         throw IOException(msg)
