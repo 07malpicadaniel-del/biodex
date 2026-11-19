@@ -1,0 +1,29 @@
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 49315 }
+scientific_name = "Octopus vulgaris"
+common_name = "Pulpo Común"
+phylum = "Mollusca"
+taxonomic_class = "Cephalopoda"
+average_mass_grams = 3000
+diet = "carnivore"
+habitat = "marine"
+defenses = ["ink", "camouflage"]
+iucn_status = "LC"
+category = "aquatic"
+summary = "Cefalópodo de extraordinaria inteligencia capaz de cambiar color y textura al instante y escapar tras una nube de tinta."
+region_hint = "Arrecifes rocosos y fondos costeros"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 39659 }
+scientific_name = "Chelonia mydas"
+common_name = "Tortuga Verde Marina"
+phylum = "Chordata"
+taxonomic_class = "Reptilia"
+average_mass_grams = 160000
+diet = "herbivore"
+habitat = "marine"
+defenses = ["shell_armor"]
+iucn_status = "EN"
+category = "aquatic"
+summary = "Gran tortuga oceánica migratoria que mantiene saludables las praderas marinas y regresa a desovar a sus playas natales."
+region_hint = "Mares tropicales, praderas marinas y playas"

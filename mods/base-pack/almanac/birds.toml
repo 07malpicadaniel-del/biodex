@@ -1,0 +1,89 @@
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 13858 }
+scientific_name = "Passer domesticus"
+common_name = "Gorrión Común"
+phylum = "Chordata"
+taxonomic_class = "Aves"
+average_mass_grams = 28
+diet = "omnivore"
+habitat = "aerial"
+defenses = ["speed"]
+iucn_status = "LC"
+category = "birds"
+summary = "Ave paseriforme muy adaptable que habita parques, jardines y plazas urbanas en casi todo el mundo."
+region_hint = "Parques, jardines y entornos urbanos"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 3017 }
+scientific_name = "Columba livia"
+common_name = "Paloma Bravía"
+phylum = "Chordata"
+taxonomic_class = "Aves"
+average_mass_grams = 330
+diet = "herbivore"
+habitat = "aerial"
+defenses = ["speed"]
+iucn_status = "LC"
+category = "birds"
+summary = "Ave gregaria de gran orientación espacial; originalmente de acantilados y hoy abundante en ciudades."
+region_hint = "Plazas, edificios y acantilados"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 8010 }
+scientific_name = "Corvus corax"
+common_name = "Cuervo Común"
+phylum = "Chordata"
+taxonomic_class = "Aves"
+average_mass_grams = 1200
+diet = "omnivore"
+habitat = "aerial"
+defenses = ["speed"]
+iucn_status = "LC"
+category = "birds"
+summary = "Córvido de gran inteligencia capaz de resolver problemas complejos y comunicarse con amplias vocalizaciones."
+region_hint = "Bosques, montañas y zonas abiertas"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 6930 }
+scientific_name = "Anas platyrhynchos"
+common_name = "Pato Real"
+phylum = "Chordata"
+taxonomic_class = "Aves"
+average_mass_grams = 1100
+diet = "omnivore"
+habitat = "freshwater"
+defenses = ["speed"]
+iucn_status = "LC"
+category = "birds"
+summary = "Ave acuática cosmopolita de lagos, estanques y ríos; el macho destaca por su cabeza verde iridiscente."
+region_hint = "Lagos, humedales y parques con agua"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 6141 }
+scientific_name = "Cynanthus latirostris"
+common_name = "Colibrí Pico Ancho"
+phylum = "Chordata"
+taxonomic_class = "Aves"
+average_mass_grams = 3
+diet = "herbivore"
+habitat = "aerial"
+defenses = ["speed"]
+iucn_status = "LC"
+category = "birds"
+summary = "Polinizador diminuto capaz de volar hacia atrás y suspenderse en el aire mientras se alimenta de néctar."
+region_hint = "Jardines florales y matorrales"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 4328 }
+scientific_name = "Pelecanus occidentalis"
+common_name = "Pelícano Pardo"
+phylum = "Chordata"
+taxonomic_class = "Aves"
+average_mass_grams = 3500
+diet = "carnivore"
+habitat = "marine"
+defenses = []
+iucn_status = "LC"
+category = "birds"
+summary = "Ave marina costera que pesca lanzándose en picada sobre cardúmenes y capturándolos con su bolsa gular."
+region_hint = "Costas, muelles y estuarios"

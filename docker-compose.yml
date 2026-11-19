@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgis/postgis:17-3.5
+    container_name: biodex-postgis
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: biodex
+      POSTGRES_USER: biodex
+      POSTGRES_PASSWORD: biodex_dev_password
+    volumes:
+      - biodex_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U biodex -d biodex"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  biodex_pgdata:

@@ -1,0 +1,74 @@
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 48662 }
+scientific_name = "Danaus plexippus"
+common_name = "Mariposa Monarca"
+phylum = "Arthropoda"
+taxonomic_class = "Insecta"
+average_mass_grams = 1
+diet = "herbivore"
+habitat = "aerial"
+defenses = ["venom"]
+iucn_status = "VU"
+category = "insects_arachnids"
+summary = "Famosa por su migración continental; acumula toxinas de algodoncillos que advierten a depredadores con su color."
+region_hint = "Praderas florales y bosques de oyamel"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 47219 }
+scientific_name = "Apis mellifera"
+common_name = "Abeja Melífera"
+phylum = "Arthropoda"
+taxonomic_class = "Insecta"
+average_mass_grams = 1
+diet = "herbivore"
+habitat = "aerial"
+defenses = ["venom"]
+iucn_status = "LC"
+category = "insects_arachnids"
+summary = "Insecto eusocial esencial para la polinización de cultivos y flora silvestre; se comunica mediante danzas."
+region_hint = "Jardines, praderas y zonas agrícolas"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 51702 }
+scientific_name = "Coccinella septempunctata"
+common_name = "Catarina"
+phylum = "Arthropoda"
+taxonomic_class = "Insecta"
+average_mass_grams = 1
+diet = "carnivore"
+habitat = "aerial"
+defenses = ["shell_armor"]
+iucn_status = "LC"
+category = "insects_arachnids"
+summary = "Escarabajo aliado de huertos y jardines que depreda grandes cantidades de pulgones bajo sus élitros rojos."
+region_hint = "Jardines, arbustos y cultivos"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 53905 }
+scientific_name = "Mantis religiosa"
+common_name = "Mantis Religiosa"
+phylum = "Arthropoda"
+taxonomic_class = "Insecta"
+average_mass_grams = 5
+diet = "carnivore"
+habitat = "terrestrial"
+defenses = ["camouflage"]
+iucn_status = "LC"
+category = "insects_arachnids"
+summary = "Depredador de emboscada con patas delanteras raptoras y camuflaje foliar capaz de girar la cabeza 180 grados."
+region_hint = "Arbustos, pastizales y jardines"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 67731 }
+scientific_name = "Anax junius"
+common_name = "Libélula Verde"
+phylum = "Arthropoda"
+taxonomic_class = "Insecta"
+average_mass_grams = 2
+diet = "carnivore"
+habitat = "aerial"
+defenses = ["speed"]
+iucn_status = "LC"
+category = "insects_arachnids"
+summary = "Cazador aéreo veloz con cuatro alas independientes y visión casi panorámica; patrulla cuerpos de agua dulce."
+region_hint = "Orillas de lagos, estanques y jardines"

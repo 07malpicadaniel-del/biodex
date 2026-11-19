@@ -1,0 +1,19 @@
+[package]
+name = "biodex-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Deterministic biological card generator, mod parser, and anti-spoofing signature verifier for BioDex."
+
+[lints]
+workspace = true
+
+[dependencies]
+glob = "0.3"
+p256 = { version = "0.13", default-features = false, features = ["std", "ecdsa", "pkcs8", "sha256"] }
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+toml = "0.8"
+
+[dev-dependencies]
+sha2 = "0.10"

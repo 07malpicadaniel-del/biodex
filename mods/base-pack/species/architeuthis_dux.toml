@@ -1,0 +1,9 @@
+scientific_name = "Architeuthis dux"
+display_name_override = "Calamar Gigante Abisal"
+
+[[moves_override]]
+id = "abyssal_embrace"
+name = "Abrazo Abisal"
+energy_cost = 4
+power = 95
+tag = "abyssal_grapple"

@@ -1,0 +1,74 @@
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 35342 }
+scientific_name = "Iguana iguana"
+common_name = "Iguana Verde"
+phylum = "Chordata"
+taxonomic_class = "Reptilia"
+average_mass_grams = 4000
+diet = "herbivore"
+habitat = "terrestrial"
+defenses = ["camouflage", "spines"]
+iucn_status = "LC"
+category = "reptiles_amphibians"
+summary = "Lagarto arborícola tropical con cresta dorsal y larga cola defensiva que se asolea en copas cerca de ríos."
+region_hint = "Selvas tropicales, riberas y parques cálidos"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 51940 }
+scientific_name = "Hemidactylus frenatus"
+common_name = "Gecko Casero"
+phylum = "Chordata"
+taxonomic_class = "Reptilia"
+average_mass_grams = 5
+diet = "carnivore"
+habitat = "terrestrial"
+defenses = ["camouflage", "speed"]
+iucn_status = "LC"
+category = "reptiles_amphibians"
+summary = "Pequeño reptil nocturno con almohadillas adhesivas que trepa muros cazando mosquitos e insectos cerca de luces."
+region_hint = "Muros, jardines y climas cálidos"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 39782 }
+scientific_name = "Trachemys scripta"
+common_name = "Tortuga de Orejas Rojas"
+phylum = "Chordata"
+taxonomic_class = "Reptilia"
+average_mass_grams = 1500
+diet = "omnivore"
+habitat = "freshwater"
+defenses = ["shell_armor"]
+iucn_status = "LC"
+category = "reptiles_amphibians"
+summary = "Tortuga semiacuática de caparazón resistente que suele asolearse en troncos y rocas de lagunas tranquilas."
+region_hint = "Estanques, ríos lentos y lagos"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 26777 }
+scientific_name = "Ambystoma mexicanum"
+common_name = "Ajolote Mexicano"
+phylum = "Chordata"
+taxonomic_class = "Amphibia"
+average_mass_grams = 110
+diet = "carnivore"
+habitat = "freshwater"
+defenses = ["camouflage"]
+iucn_status = "CR"
+category = "reptiles_amphibians"
+summary = "Anfibio neoténico endémico del valle de México famoso por sus branquias externas y extraordinaria regeneración."
+region_hint = "Canales y humedales de Xochimilco"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 65979 }
+scientific_name = "Lithobates catesbeianus"
+common_name = "Rana Toro"
+phylum = "Chordata"
+taxonomic_class = "Amphibia"
+average_mass_grams = 500
+diet = "carnivore"
+habitat = "freshwater"
+defenses = ["camouflage"]
+iucn_status = "LC"
+category = "reptiles_amphibians"
+summary = "Anfibio robusto de potente canto grave que embosca presas en orillas de lagos, estanques y pantanos."
+region_hint = "Estanques, lagunas y humedales"

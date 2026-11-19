@@ -1,0 +1,89 @@
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 47144 }
+scientific_name = "Canis familiaris"
+common_name = "Perro Doméstico"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 18000
+diet = "omnivore"
+habitat = "terrestrial"
+defenses = ["speed"]
+iucn_status = "LC"
+category = "mammals"
+summary = "Cánido social con agudo sentido del olfato y oído, compañero histórico del ser humano en todo el planeta."
+region_hint = "Entornos domésticos y parques"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 118552 }
+scientific_name = "Felis catus"
+common_name = "Gato Doméstico"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 4200
+diet = "carnivore"
+habitat = "terrestrial"
+defenses = ["camouflage", "speed"]
+iucn_status = "LC"
+category = "mammals"
+summary = "Pequeño felino ágil de visión crepuscular excelente, reflejos rápidos y sigilo notable al acechar."
+region_hint = "Entornos domésticos y urbanos"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 46009 }
+scientific_name = "Sciurus aureogaster"
+common_name = "Ardilla Gris Mexicana"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 500
+diet = "herbivore"
+habitat = "terrestrial"
+defenses = ["speed"]
+iucn_status = "LC"
+category = "mammals"
+summary = "Roedor arborícola diurno que almacena semillas y frutos, ayudando a la regeneración de bosques y parques."
+region_hint = "Bosques templados y parques arbolados"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 41663 }
+scientific_name = "Procyon lotor"
+common_name = "Mapache"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 7000
+diet = "omnivore"
+habitat = "terrestrial"
+defenses = ["camouflage"]
+iucn_status = "LC"
+category = "mammals"
+summary = "Mamífero nocturno de gran destreza manual, reconocible por su antifaz facial oscuro y cola anillada."
+region_hint = "Bosques cercanos al agua y áreas suburbanas"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 42652 }
+scientific_name = "Didelphis virginiana"
+common_name = "Tlacuache"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 2500
+diet = "omnivore"
+habitat = "terrestrial"
+defenses = ["camouflage"]
+iucn_status = "LC"
+category = "mammals"
+summary = "Marsupial nocturno de cola prensil que controla plagas de insectos y garrapatas; finge inmovilidad ante peligro."
+region_hint = "Bosques, barrancas y zonas periurbanas"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 42069 }
+scientific_name = "Vulpes vulpes"
+common_name = "Zorro Rojo"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 6500
+diet = "omnivore"
+habitat = "terrestrial"
+defenses = ["speed", "camouflage"]
+iucn_status = "LC"
+category = "mammals"
+summary = "Cánido solitario y astuto que combina gran audición y agilidad para prosperar en bosques, praderas y linderos."
+region_hint = "Bosques, praderas y zonas rurales"

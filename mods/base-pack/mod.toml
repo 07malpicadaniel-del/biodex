@@ -1,0 +1,10 @@
+schema_version = 1
+id = "base-pack"
+name = "BioDex Official Base Pack"
+version = "0.2.0"
+authors = ["BioDex Core Contributors"]
+layer = "official_base"
+priority = 0
+description = "Pack oficial base con el Almanaque de fauna básica y overrides iniciales."
+species_paths = ["species/*.toml"]
+almanac_paths = ["almanac/*.toml"]
