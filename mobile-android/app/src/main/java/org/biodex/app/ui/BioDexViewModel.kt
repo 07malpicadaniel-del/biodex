@@ -98,6 +98,7 @@ data class BioDexUiState(
     val almanacTotalSpecies: Int = 0,
     val almanacDiscoveredCount: Int = 0,
     val almanacMatchedCount: Int = 0,
+    val almanacBackendIndexedCount: Int = 0,
     val almanacCategoryCounts: Map<String, Int> = emptyMap(),
     val almanacEntries: List<AlmanacItemDto> = emptyList(),
     val almanacSearchQuery: String = "",
@@ -165,6 +166,7 @@ data class BioDexUiState(
             almanacTotalSpecies == other.almanacTotalSpecies &&
             almanacDiscoveredCount == other.almanacDiscoveredCount &&
             almanacMatchedCount == other.almanacMatchedCount &&
+            almanacBackendIndexedCount == other.almanacBackendIndexedCount &&
             almanacCategoryCounts == other.almanacCategoryCounts &&
             almanacEntries == other.almanacEntries &&
             almanacSearchQuery == other.almanacSearchQuery &&
@@ -207,6 +209,7 @@ data class BioDexUiState(
         result = 31 * result + almanacTotalSpecies
         result = 31 * result + almanacDiscoveredCount
         result = 31 * result + almanacMatchedCount
+        result = 31 * result + almanacBackendIndexedCount
         result = 31 * result + almanacCategoryCounts.hashCode()
         result = 31 * result + almanacEntries.hashCode()
         result = 31 * result + almanacSearchQuery.hashCode()
@@ -486,6 +489,8 @@ class BioDexViewModel(application: Application) : AndroidViewModel(application) 
                             almanacTotalSpecies = almanac.totalSpecies,
                             almanacDiscoveredCount = almanac.discoveredCount,
                             almanacMatchedCount = resolvedMatched,
+                            almanacBackendIndexedCount = almanac.backendIndexedCount
+                                .coerceAtLeast(almanac.totalSpecies),
                             almanacCategoryCounts = almanac.categoryCounts,
                             almanacEntries = almanac.entries,
                             activeBackendUrl = active,
@@ -559,9 +564,10 @@ class BioDexViewModel(application: Application) : AndroidViewModel(application) 
         val nextPage = if (stateSnapshot.almanacTotalSpecies <= 120) {
             1
         } else {
-            (stateSnapshot.almanacLastSyncedPage.coerceAtLeast(1) + 1).coerceAtMost(10)
+            (stateSnapshot.almanacLastSyncedPage.coerceAtLeast(1) + 1).coerceAtMost(50)
         }
         val activeCategory = stateSnapshot.almanacCategoryFilter.apiKey
+        val keepUiLightweight = stateSnapshot.almanacTotalSpecies >= 2500
         viewModelScope.launch {
             _uiState.update {
                 it.copy(
@@ -572,19 +578,22 @@ class BioDexViewModel(application: Application) : AndroidViewModel(application) 
             val result = apiClient.syncNaturaListaSpecies(
                 page = nextPage,
                 category = activeCategory,
+                backendOnly = keepUiLightweight,
             )
             var shouldRefresh = false
             _uiState.update { state ->
                 result.fold(
                     onSuccess = { report ->
                         shouldRefresh = true
+                        val totalBackend = report.totalBackendIndexed.coerceAtLeast(report.totalCatalogSpecies)
                         state.copy(
                             almanacSyncingMore = false,
                             almanacLastSyncedPage = report.page,
+                            almanacBackendIndexedCount = totalBackend.toInt(),
                             almanacSyncMessage = if (report.upsertedSpecies > 0) {
-                                "+${report.upsertedSpecies} especies sincronizadas (0 subespecies)"
+                                "+${report.upsertedSpecies} especies indexadas ($totalBackend en backend)"
                             } else {
-                                "Catálogo al día (${report.totalCatalogSpecies} especies reales)"
+                                "Backend al día ($totalBackend especies reales)"
                             },
                         )
                     },

@@ -31,6 +31,7 @@ class BioDexApiClientTest {
               "total_species": 920,
               "discovered_count": 920,
               "matched_count": 48,
+              "backend_indexed_count": 12450,
               "category_counts": { "canids": 36, "felines": 38, "sharks": 48 },
               "entries": []
             }
@@ -38,6 +39,7 @@ class BioDexApiClientTest {
         val parsedList = json.decodeFromString<AlmanacListResponse>(listPayload)
         assertEquals(920, parsedList.totalSpecies)
         assertEquals(48, parsedList.matchedCount)
+        assertEquals(12450, parsedList.backendIndexedCount)
         assertEquals(36, parsedList.categoryCounts["canids"])
         assertEquals(48, parsedList.categoryCounts["sharks"])
 
@@ -47,12 +49,14 @@ class BioDexApiClientTest {
               "fetched_candidates": 400,
               "filtered_non_species": 27,
               "upserted_species": 373,
-              "total_catalog_species": 1293
+              "total_catalog_species": 1293,
+              "total_backend_indexed": 12450
             }
         """.trimIndent()
         val parsedSync = json.decodeFromString<NaturaListaSyncResponse>(syncPayload)
         assertEquals(2, parsedSync.page)
         assertEquals(27, parsedSync.filteredNonSpecies)
         assertEquals(1293L, parsedSync.totalCatalogSpecies)
+        assertEquals(12450L, parsedSync.totalBackendIndexed)
     }
 }

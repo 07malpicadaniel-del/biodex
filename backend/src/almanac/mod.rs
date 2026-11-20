@@ -45,6 +45,8 @@ pub struct AlmanacFilter {
     pub captured_filter: Option<String>,
     /// Include NaturaLista-synced species alongside curated core Almanac species (`true` by default).
     pub include_naturalista: Option<bool>,
+    /// Explicitly include deep backend-indexed species even without text search (`None` = auto on search).
+    pub include_backend_indexed: Option<bool>,
     /// Maximum number of entries returned in this page (returns all matching entries when omitted).
     pub limit: Option<i64>,
     /// Zero-based pagination offset (defaults to `0`).
@@ -124,6 +126,9 @@ pub struct AlmanacListResponse {
     /// Total number of entries matching the active search/category/status filters before pagination.
     #[serde(default)]
     pub matched_count: usize,
+    /// Total living animal species indexed in the backend catalog (including deep backend-only taxa).
+    #[serde(default)]
+    pub backend_indexed_count: usize,
     /// Per-clade species totals across the active base scope (`canids`, `felines`, `sharks`, etc.).
     #[serde(default)]
     pub category_counts: BTreeMap<String, usize>,
@@ -407,6 +412,28 @@ pub async fn list_almanac(
         .map(str::trim)
         .filter(|q| !q.is_empty())
         .map(|q| format!("%{}%", escape_ilike_pattern(q)));
+    let include_backend_in_query = include_naturalista
+        && filter
+            .include_backend_indexed
+            .unwrap_or(search_pattern.is_some());
+
+    let backend_indexed_count_i64: i64 = sqlx::query_scalar(
+        r#"
+        SELECT COUNT(*)::BIGINT
+        FROM species_catalog sc
+        WHERE sc.taxonomic_rank = 'species'
+          AND (
+              sc.is_core_almanac = TRUE
+              OR ($1::BOOL AND (sc.is_naturalista_synced = TRUE OR sc.is_backend_indexed = TRUE))
+          )
+        "#,
+    )
+    .bind(include_naturalista)
+    .fetch_one(pool)
+    .await?;
+    let backend_indexed_count =
+        usize::try_from(backend_indexed_count_i64.max(0)).unwrap_or(total_species);
+
     let category_filter = filter
         .category
         .as_deref()
@@ -492,6 +519,7 @@ pub async fn list_almanac(
           AND (
               sc.is_core_almanac = TRUE
               OR ($2::BOOL AND sc.is_naturalista_synced = TRUE)
+              OR ($9::BOOL AND sc.is_backend_indexed = TRUE)
               OR ($1::TEXT IS NOT NULL AND COALESCE(cap.capture_count, 0) > 0)
           )
           AND ($3::TEXT IS NULL OR LOWER(sc.category) = $3)
@@ -524,6 +552,7 @@ pub async fn list_almanac(
     .bind(captured_mode)
     .bind(limit_val)
     .bind(offset_val)
+    .bind(include_backend_in_query)
     .fetch_all(pool)
     .await?;
 
@@ -546,6 +575,7 @@ pub async fn list_almanac(
               AND (
                   sc.is_core_almanac = TRUE
                   OR ($2::BOOL AND sc.is_naturalista_synced = TRUE)
+                  OR ($7::BOOL AND sc.is_backend_indexed = TRUE)
                   OR ($1::TEXT IS NOT NULL AND COALESCE(cap.capture_count, 0) > 0)
               )
               AND ($3::TEXT IS NULL OR LOWER(sc.category) = $3)
@@ -570,6 +600,7 @@ pub async fn list_almanac(
         .bind(habitat_filter.as_deref())
         .bind(search_pattern.as_deref())
         .bind(captured_mode)
+        .bind(include_backend_in_query)
         .fetch_one(pool)
         .await?;
         usize::try_from(count_row.try_get::<i64, _>("matched_total")?.max(0)).unwrap_or(0)
@@ -588,6 +619,7 @@ pub async fn list_almanac(
         total_species,
         discovered_count,
         matched_count,
+        backend_indexed_count,
         category_counts,
         entries,
     })

@@ -1220,6 +1220,21 @@ async fn naturalista_clade_sync_filters_subspecies_and_supports_pagination() {
                             "default_photo": { "medium_url": "https://example.org/human.jpg" }
                         }]
                     }))
+                } else if q.contains("taxon_id=39392") {
+                    axum::Json(json!({
+                        "results": [{
+                            "id": 9_000_006,
+                            "name": "Varanus komodoensis",
+                            "preferred_common_name": "Dragón de Komodo Prueba",
+                            "rank": "species",
+                            "rank_level": 10,
+                            "is_active": true,
+                            "extinct": false,
+                            "ancestor_ids": [26036, 39392],
+                            "observations_count": 2913,
+                            "default_photo": { "medium_url": "https://example.org/komodo.jpg" }
+                        }]
+                    }))
                 } else {
                     axum::Json(json!({ "results": [] }))
                 }
@@ -1381,6 +1396,7 @@ async fn naturalista_clade_sync_filters_subspecies_and_supports_pagination() {
     );
 
     let missing_in_dev_resp = app
+        .clone()
         .oneshot(
             Request::builder()
                 .uri("/api/v1/almanac?dev_mode=true&captured_filter=missing")
@@ -1397,9 +1413,50 @@ async fn naturalista_clade_sync_filters_subspecies_and_supports_pagination() {
     assert_eq!(missing_list.matched_count, 0);
     assert!(missing_list.entries.is_empty());
 
+    // 6. Sync with backend_only=true keeps UI list lightweight while making taxon searchable & backend-indexed.
+    let backend_only_resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/almanac/naturalista/sync?page=2&category=reptiles_amphibians&backend_only=true")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(backend_only_resp.status(), StatusCode::OK);
+    let backend_bytes = axum::body::to_bytes(backend_only_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let backend_report: NaturaListaSyncReport = serde_json::from_slice(&backend_bytes).unwrap();
+    assert_eq!(backend_report.upserted_species, 1);
+    assert!(backend_report.total_backend_indexed > backend_report.total_catalog_species);
+
+    let search_komodo_resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/almanac?dev_mode=true&q=Komodo%20Prueba")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(search_komodo_resp.status(), StatusCode::OK);
+    let komodo_bytes = axum::body::to_bytes(search_komodo_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let komodo_list: AlmanacListResponse = serde_json::from_slice(&komodo_bytes).unwrap();
+    assert_eq!(komodo_list.entries.len(), 1);
+    assert_eq!(
+        komodo_list.entries[0].taxon_id,
+        TaxonId::INaturalist(9_000_006)
+    );
+    assert!(komodo_list.backend_indexed_count > komodo_list.total_species);
+
     // Cleanup synthetic records so local dev Postgres remains populated strictly with real species.
     sqlx::query(
-        "DELETE FROM species_catalog WHERE taxon_source = 'i_naturalist' AND taxon_external_id IN (9000001, 9000005)",
+        "DELETE FROM species_catalog WHERE taxon_source = 'i_naturalist' AND taxon_external_id IN (9000001, 9000005, 9000006)",
     )
     .execute(&pool)
     .await

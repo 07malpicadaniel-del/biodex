@@ -113,6 +113,7 @@ data class AlmanacListResponse(
     @SerialName("total_species") val totalSpecies: Int,
     @SerialName("discovered_count") val discoveredCount: Int,
     @SerialName("matched_count") val matchedCount: Int = 0,
+    @SerialName("backend_indexed_count") val backendIndexedCount: Int = 0,
     @SerialName("category_counts") val categoryCounts: Map<String, Int> = emptyMap(),
     val entries: List<AlmanacItemDto>,
 )
@@ -124,6 +125,7 @@ data class NaturaListaSyncResponse(
     @SerialName("filtered_non_species") val filteredNonSpecies: Int,
     @SerialName("upserted_species") val upsertedSpecies: Int,
     @SerialName("total_catalog_species") val totalCatalogSpecies: Long,
+    @SerialName("total_backend_indexed") val totalBackendIndexed: Long = 0L,
 )
 
 @Serializable

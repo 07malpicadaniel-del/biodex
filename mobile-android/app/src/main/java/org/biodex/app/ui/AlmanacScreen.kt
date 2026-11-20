@@ -499,9 +499,14 @@ private fun AlmanacCollectionBody(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             val matchedTotal = uiState.almanacMatchedCount.coerceAtLeast(entries.size)
+            val backendTotal = uiState.almanacBackendIndexedCount.coerceAtLeast(matchedTotal)
+            val defaultCounter = if (backendTotal > uiState.almanacTotalSpecies && uiState.almanacSearchQuery.isBlank()) {
+                "UI ${entries.size}/$matchedTotal · ${BioDexFormatters.formatObservations(backendTotal.toLong())} backend"
+            } else {
+                "Mostrando ${entries.size} de $matchedTotal · Sin subespecies"
+            }
             Text(
-                text = uiState.almanacSyncMessage
-                    ?: "Mostrando ${entries.size} de $matchedTotal · Sin subespecies",
+                text = uiState.almanacSyncMessage ?: defaultCounter,
                 style = MaterialTheme.typography.labelSmall,
                 color = BioDexColors.TextSecondary,
                 maxLines = 1,

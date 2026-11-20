@@ -394,15 +394,13 @@ pub fn parse_inaturalist_cv_candidate(
     }
 
     let mut top_non_fauna: Option<(String, String)> = None;
+    let mut strong_visual_fallback: Option<ParsedCvCandidate> = None;
     for result in parsed.results {
         let raw_score = result.combined_score.or(result.vision_score).unwrap_or(0.0);
         // iNaturalist Computer Vision `score_image` always reports percentage scores in `0.0..=100.0`.
         let confidence = (raw_score / 100.0).clamp(0.0, 1.0);
-        if confidence < min_confidence {
-            continue;
-        }
         if is_non_fauna_taxon(&result.taxon) {
-            if top_non_fauna.is_none() {
+            if confidence >= min_confidence && top_non_fauna.is_none() {
                 let category = result
                     .taxon
                     .iconic_taxon_name
@@ -413,10 +411,26 @@ pub fn parse_inaturalist_cv_candidate(
             continue;
         }
 
-        return Ok(ParsedCvCandidate {
-            confidence,
-            taxon: result.taxon,
-        });
+        if confidence >= min_confidence {
+            return Ok(ParsedCvCandidate {
+                confidence,
+                taxon: result.taxon,
+            });
+        }
+
+        // Preserve strong pure visual identifications (`vision_score >= 65%`) when GPS prior
+        // penalizes `combined_score` for zoo/exotic/non-local species (e.g. Komodo dragon).
+        let visual_conf = (result.vision_score.unwrap_or(0.0) / 100.0).clamp(0.0, 1.0);
+        if strong_visual_fallback.is_none() && visual_conf >= min_confidence.max(0.65) {
+            strong_visual_fallback = Some(ParsedCvCandidate {
+                confidence: visual_conf,
+                taxon: result.taxon,
+            });
+        }
+    }
+
+    if let Some(visual_candidate) = strong_visual_fallback {
+        return Ok(visual_candidate);
     }
 
     if let Some((detected_name, category)) = top_non_fauna {
@@ -795,11 +809,12 @@ async fn cache_traits(
         INSERT INTO species_catalog (
             taxon_source, taxon_external_id, scientific_name, common_name,
             phylum, taxonomic_class, average_mass_grams, diet, habitat, defenses,
-            iucn_status, summary, category, is_core_almanac,
+            iucn_status, summary, category, is_core_almanac, is_backend_indexed,
             image_url, photo_attribution, wikipedia_url, naturalista_observations_count
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, FALSE, $14, $15, $16, $17)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, FALSE, TRUE, $14, $15, $16, $17)
         ON CONFLICT (taxon_source, taxon_external_id) DO UPDATE SET
+            is_backend_indexed = TRUE,
             image_url = COALESCE(species_catalog.image_url, EXCLUDED.image_url),
             photo_attribution = COALESCE(species_catalog.photo_attribution, EXCLUDED.photo_attribution),
             wikipedia_url = COALESCE(species_catalog.wikipedia_url, EXCLUDED.wikipedia_url),

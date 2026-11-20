@@ -36,7 +36,7 @@ class BioDexApiClient(
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(45, TimeUnit.SECONDS)
+        .readTimeout(90, TimeUnit.SECONDS)
         .writeTimeout(25, TimeUnit.SECONDS)
         .build()
 
@@ -121,6 +121,7 @@ class BioDexApiClient(
     suspend fun syncNaturaListaSpecies(
         page: Int = 1,
         category: String? = null,
+        backendOnly: Boolean? = null,
     ): Result<NaturaListaSyncResponse> =
         withContext(Dispatchers.IO) {
             executeWithEndpointFailover { baseUrl ->
@@ -128,6 +129,9 @@ class BioDexApiClient(
                 builder.addQueryParameter("page", page.toString())
                 if (!category.isNullOrBlank()) {
                     builder.addQueryParameter("category", category)
+                }
+                if (backendOnly != null) {
+                    builder.addQueryParameter("backend_only", backendOnly.toString())
                 }
                 val emptyBody = ByteArray(0).toRequestBody(null)
                 val req = Request.Builder().url(builder.build()).post(emptyBody).build()

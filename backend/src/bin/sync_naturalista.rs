@@ -24,7 +24,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     let config = BackendConfig::from_env()?;
-    let (pages, category) = parse_cli_args()?;
+    let cli = parse_cli_args()?;
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -46,10 +46,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .user_agent("BioDex/0.1.0 (Open Source Citizen Science NaturaLista Sync)")
         .build()?;
 
-    for page in 1..=pages {
+    let end_page = (cli.start_page + cli.pages - 1).min(50);
+    for page in cli.start_page..=end_page {
         tracing::info!(
             page,
-            category = ?category,
+            category = ?cli.category,
+            backend_only = cli.backend_only,
             inat_url = %config.endpoints.inaturalist_base_url,
             "synchronizing NaturaLista clades (species rank only)"
         );
@@ -61,7 +63,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             config.inaturalist_api_token.as_deref(),
             &NaturaListaSyncOptions {
                 page: Some(page),
-                category: category.clone(),
+                category: cli.category.clone(),
+                backend_only: Some(cli.backend_only),
             },
         )
         .await?;
@@ -72,6 +75,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             filtered_non_species = report.filtered_non_species,
             upserted = report.upserted_species,
             total_catalog_species = report.total_catalog_species,
+            total_backend_indexed = report.total_backend_indexed,
             "NaturaLista page synchronization finished"
         );
     }
@@ -79,21 +83,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn parse_cli_args() -> Result<(u32, Option<String>), String> {
+struct CliArgs {
+    start_page: u32,
+    pages: u32,
+    category: Option<String>,
+    backend_only: bool,
+}
+
+fn parse_cli_args() -> Result<CliArgs, String> {
+    let mut start_page: u32 = 1;
     let mut pages: u32 = 1;
     let mut category: Option<String> = None;
+    let mut backend_only = false;
 
     let mut args = env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
+            "--start-page" => {
+                let raw = args
+                    .next()
+                    .ok_or_else(|| "--start-page requires a positive integer".to_string())?;
+                start_page = raw
+                    .parse::<u32>()
+                    .map_err(|_| format!("invalid --start-page value '{raw}'"))?
+                    .clamp(1, 50);
+            }
             "--pages" => {
                 let raw = args
                     .next()
-                    .ok_or_else(|| "--pages requires a positive integer (1..=10)".to_string())?;
+                    .ok_or_else(|| "--pages requires a positive integer (1..=20)".to_string())?;
                 pages = raw
                     .parse::<u32>()
                     .map_err(|_| format!("invalid --pages value '{raw}'"))?
-                    .clamp(1, 10);
+                    .clamp(1, 20);
             }
             "--category" => {
                 let raw = args
@@ -101,13 +123,19 @@ fn parse_cli_args() -> Result<(u32, Option<String>), String> {
                     .ok_or_else(|| "--category requires a clade slug".to_string())?;
                 category = Some(raw);
             }
+            "--backend-only" => backend_only = true,
             other => {
                 return Err(format!(
-                    "unknown argument '{other}' (supported: --pages <N>, --category <slug>)"
+                    "unknown argument '{other}' (supported: --start-page <N>, --pages <N>, --category <slug>, --backend-only)"
                 ));
             }
         }
     }
 
-    Ok((pages, category))
+    Ok(CliArgs {
+        start_page,
+        pages,
+        category,
+        backend_only,
+    })
 }

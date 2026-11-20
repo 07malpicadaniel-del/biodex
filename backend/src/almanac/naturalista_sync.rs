@@ -20,8 +20,17 @@ const INAT_CANIDAE: u64 = 42_043;
 const INAT_FELIDAE: u64 = 41_944;
 const INAT_PRIMATES: u64 = 43_367;
 const INAT_ELASMOBRANCHII: u64 = 47_273;
+const INAT_CARCHARHINIFORMES: u64 = 48_069;
+const INAT_LAMNIFORMES: u64 = 50_870;
+const INAT_MYLIOBATIFORMES: u64 = 196_615;
 const INAT_CETACEA: u64 = 152_871;
+const INAT_DELPHINIDAE: u64 = 41_479;
+const INAT_BALAENOPTERIDAE: u64 = 41_546;
+const INAT_OTARIIDAE: u64 = 41_736;
+const INAT_PHOCIDAE: u64 = 41_687;
 const INAT_CHELONIOIDEA: u64 = 372_234;
+const INAT_SYNGNATHIDAE: u64 = 49_106;
+const INAT_CEPHALOPODA: u64 = 47_459;
 const INAT_MOLLUSCA: u64 = 47_115;
 const INAT_ARACHNIDA: u64 = 47_119;
 const INAT_MALACOSTRACA: u64 = 47_187;
@@ -34,6 +43,44 @@ const INAT_AVES: u64 = 3;
 const INAT_REPTILIA: u64 = 26_036;
 const INAT_AMPHIBIA: u64 = 20_978;
 
+// Charismatic orders and families so iconic wildlife (Harpy Eagle, Komodo Dragon, Blue-tongued Skinks, etc.)
+// is guaranteed in the backend index without getting buried in mega-classes like Aves or Insecta.
+const INAT_ACCIPITRIFORMES: u64 = 71_261;
+const INAT_FALCONIFORMES: u64 = 67_570;
+const INAT_STRIGIFORMES: u64 = 19_350;
+const INAT_PSITTACIFORMES: u64 = 18_874;
+const INAT_SPHENISCIFORMES: u64 = 67_564;
+const INAT_RAMPHASTIDAE: u64 = 18_485;
+const INAT_TROCHILIDAE: u64 = 5_562;
+const INAT_PHOENICOPTERIFORMES: u64 = 67_569;
+const INAT_VARANIDAE: u64 = 39_392;
+const INAT_SCINCIDAE: u64 = 36_982;
+const INAT_CHAMAELEONIDAE: u64 = 32_805;
+const INAT_IGUANIDAE: u64 = 35_278;
+const INAT_CROCODYLIA: u64 = 26_039;
+const INAT_TESTUDINES: u64 = 39_532;
+const INAT_SERPENTES: u64 = 85_553;
+const INAT_CAUDATA: u64 = 26_718;
+const INAT_ANURA: u64 = 20_979;
+const INAT_URSIDAE: u64 = 41_636;
+const INAT_PROBOSCIDEA: u64 = 43_691;
+const INAT_RHINOCEROTIDAE: u64 = 43_341;
+const INAT_HIPPOPOTAMIDAE: u64 = 42_146;
+const INAT_GIRAFFIDAE: u64 = 42_153;
+const INAT_CERVIDAE: u64 = 42_158;
+const INAT_BOVIDAE: u64 = 42_241;
+const INAT_CAMELIDAE: u64 = 42_231;
+const INAT_EQUIDAE: u64 = 43_328;
+const INAT_SUIDAE: u64 = 42_118;
+const INAT_MUSTELIDAE: u64 = 41_770;
+const INAT_PROCYONIDAE: u64 = 41_660;
+const INAT_HYAENIDAE: u64 = 41_884;
+const INAT_XENARTHRA: u64 = 848_322;
+const INAT_DIPROTODONTIA: u64 = 42_711;
+const INAT_DIDELPHIMORPHIA: u64 = 42_540;
+const INAT_CHIROPTERA: u64 = 40_268;
+const INAT_RODENTIA: u64 = 43_698;
+
 /// Clade sync target paired with a human-readable Spanish description fallback.
 #[derive(Debug, Clone, Copy)]
 struct CladeTarget {
@@ -43,6 +90,7 @@ struct CladeTarget {
 }
 
 const SYNC_CLADES: &[CladeTarget] = &[
+    // --- Requested & charismatic focal clades first ---
     CladeTarget {
         taxon_id: INAT_CANIDAE,
         default_category: "canids",
@@ -62,6 +110,246 @@ const SYNC_CLADES: &[CladeTarget] = &[
         taxon_id: INAT_ELASMOBRANCHII,
         default_category: "sharks",
         group_label_es: "Escuálido marino (tiburón o raya)",
+    },
+    CladeTarget {
+        taxon_id: INAT_CARCHARHINIFORMES,
+        default_category: "sharks",
+        group_label_es: "Tiburón carcariniforme",
+    },
+    CladeTarget {
+        taxon_id: INAT_LAMNIFORMES,
+        default_category: "sharks",
+        group_label_es: "Tiburón lámnido",
+    },
+    CladeTarget {
+        taxon_id: INAT_MYLIOBATIFORMES,
+        default_category: "sharks",
+        group_label_es: "Raya o mantarraya",
+    },
+    // --- Iconic Birds (Águila arpía, halcones, búhos, guacamayas, pingüinos, tucanes, colibríes) ---
+    CladeTarget {
+        taxon_id: INAT_ACCIPITRIFORMES,
+        default_category: "birds",
+        group_label_es: "Ave rapaz (águilas y gavilanes)",
+    },
+    CladeTarget {
+        taxon_id: INAT_FALCONIFORMES,
+        default_category: "birds",
+        group_label_es: "Halcón o caracara",
+    },
+    CladeTarget {
+        taxon_id: INAT_STRIGIFORMES,
+        default_category: "birds",
+        group_label_es: "Ave rapaz nocturna (búho o lechuza)",
+    },
+    CladeTarget {
+        taxon_id: INAT_PSITTACIFORMES,
+        default_category: "birds",
+        group_label_es: "Psitácido (guacamaya, loro o perico)",
+    },
+    CladeTarget {
+        taxon_id: INAT_SPHENISCIFORMES,
+        default_category: "birds",
+        group_label_es: "Pingüino marino",
+    },
+    CladeTarget {
+        taxon_id: INAT_RAMPHASTIDAE,
+        default_category: "birds",
+        group_label_es: "Tucán o aracari",
+    },
+    CladeTarget {
+        taxon_id: INAT_TROCHILIDAE,
+        default_category: "birds",
+        group_label_es: "Colibrí",
+    },
+    CladeTarget {
+        taxon_id: INAT_PHOENICOPTERIFORMES,
+        default_category: "birds",
+        group_label_es: "Flamenco",
+    },
+    // --- Iconic Reptiles & Amphibians (Dragón de Komodo, Escincos lengua azul, Camaleones, etc.) ---
+    CladeTarget {
+        taxon_id: INAT_VARANIDAE,
+        default_category: "reptiles_amphibians",
+        group_label_es: "Varano (monitor o dragón de Komodo)",
+    },
+    CladeTarget {
+        taxon_id: INAT_SCINCIDAE,
+        default_category: "reptiles_amphibians",
+        group_label_es: "Escinco (lagarto de lengua azul y afines)",
+    },
+    CladeTarget {
+        taxon_id: INAT_CHAMAELEONIDAE,
+        default_category: "reptiles_amphibians",
+        group_label_es: "Camaleón",
+    },
+    CladeTarget {
+        taxon_id: INAT_IGUANIDAE,
+        default_category: "reptiles_amphibians",
+        group_label_es: "Iguana",
+    },
+    CladeTarget {
+        taxon_id: INAT_CROCODYLIA,
+        default_category: "reptiles_amphibians",
+        group_label_es: "Cocodrilo, caimán o gavial",
+    },
+    CladeTarget {
+        taxon_id: INAT_TESTUDINES,
+        default_category: "reptiles_amphibians",
+        group_label_es: "Tortuga terrestre o dulceacuícola",
+    },
+    CladeTarget {
+        taxon_id: INAT_SERPENTES,
+        default_category: "reptiles_amphibians",
+        group_label_es: "Serpiente",
+    },
+    CladeTarget {
+        taxon_id: INAT_CAUDATA,
+        default_category: "reptiles_amphibians",
+        group_label_es: "Salamandra, ajolote o tritón",
+    },
+    CladeTarget {
+        taxon_id: INAT_ANURA,
+        default_category: "reptiles_amphibians",
+        group_label_es: "Rana o sapo",
+    },
+    // --- Iconic Mammals (Osos, elefantes, rinocerontes, jirafas, marsupiales, etc.) ---
+    CladeTarget {
+        taxon_id: INAT_URSIDAE,
+        default_category: "mammals",
+        group_label_es: "Úrsido (oso)",
+    },
+    CladeTarget {
+        taxon_id: INAT_PROBOSCIDEA,
+        default_category: "mammals",
+        group_label_es: "Elefante",
+    },
+    CladeTarget {
+        taxon_id: INAT_RHINOCEROTIDAE,
+        default_category: "mammals",
+        group_label_es: "Rinoceronte",
+    },
+    CladeTarget {
+        taxon_id: INAT_HIPPOPOTAMIDAE,
+        default_category: "mammals",
+        group_label_es: "Hipopótamo",
+    },
+    CladeTarget {
+        taxon_id: INAT_GIRAFFIDAE,
+        default_category: "mammals",
+        group_label_es: "Jirafa u okapi",
+    },
+    CladeTarget {
+        taxon_id: INAT_CERVIDAE,
+        default_category: "mammals",
+        group_label_es: "Cérvido (venado o alce)",
+    },
+    CladeTarget {
+        taxon_id: INAT_BOVIDAE,
+        default_category: "mammals",
+        group_label_es: "Bóvido o antílope",
+    },
+    CladeTarget {
+        taxon_id: INAT_CAMELIDAE,
+        default_category: "mammals",
+        group_label_es: "Camélido",
+    },
+    CladeTarget {
+        taxon_id: INAT_EQUIDAE,
+        default_category: "mammals",
+        group_label_es: "Équido (cebra o asno silvestre)",
+    },
+    CladeTarget {
+        taxon_id: INAT_SUIDAE,
+        default_category: "mammals",
+        group_label_es: "Súido (jabalí o facóquero)",
+    },
+    CladeTarget {
+        taxon_id: INAT_MUSTELIDAE,
+        default_category: "mammals",
+        group_label_es: "Mustélido (nutria, tejón o comadreja)",
+    },
+    CladeTarget {
+        taxon_id: INAT_PROCYONIDAE,
+        default_category: "mammals",
+        group_label_es: "Prociónido (mapache, coatí o cacomixtle)",
+    },
+    CladeTarget {
+        taxon_id: INAT_HYAENIDAE,
+        default_category: "mammals",
+        group_label_es: "Hiénido",
+    },
+    CladeTarget {
+        taxon_id: INAT_XENARTHRA,
+        default_category: "mammals",
+        group_label_es: "Xenartro (perezoso, armadillo u oso hormiguero)",
+    },
+    CladeTarget {
+        taxon_id: INAT_DIPROTODONTIA,
+        default_category: "mammals",
+        group_label_es: "Marsupial australiano (canguro, koala o wombat)",
+    },
+    CladeTarget {
+        taxon_id: INAT_DIDELPHIMORPHIA,
+        default_category: "mammals",
+        group_label_es: "Tlacuache o zarigüeya",
+    },
+    CladeTarget {
+        taxon_id: INAT_CHIROPTERA,
+        default_category: "mammals",
+        group_label_es: "Murciélago",
+    },
+    CladeTarget {
+        taxon_id: INAT_RODENTIA,
+        default_category: "mammals",
+        group_label_es: "Roedor (capibara, castor o ardilla)",
+    },
+    // --- Aquatic Mammals, Sea Turtles, Seahorses & Bony Fish ---
+    CladeTarget {
+        taxon_id: INAT_CETACEA,
+        default_category: "aquatic",
+        group_label_es: "Cetáceo marino",
+    },
+    CladeTarget {
+        taxon_id: INAT_DELPHINIDAE,
+        default_category: "aquatic",
+        group_label_es: "Delfínido marino",
+    },
+    CladeTarget {
+        taxon_id: INAT_BALAENOPTERIDAE,
+        default_category: "aquatic",
+        group_label_es: "Ballena rorcual",
+    },
+    CladeTarget {
+        taxon_id: INAT_OTARIIDAE,
+        default_category: "aquatic",
+        group_label_es: "Lobo o león marino",
+    },
+    CladeTarget {
+        taxon_id: INAT_PHOCIDAE,
+        default_category: "aquatic",
+        group_label_es: "Foca marina",
+    },
+    CladeTarget {
+        taxon_id: INAT_CHELONIOIDEA,
+        default_category: "aquatic",
+        group_label_es: "Tortuga marina",
+    },
+    CladeTarget {
+        taxon_id: INAT_SYNGNATHIDAE,
+        default_category: "aquatic",
+        group_label_es: "Caballito de mar o pez pipa",
+    },
+    CladeTarget {
+        taxon_id: INAT_ACTINOPTERYGII,
+        default_category: "aquatic",
+        group_label_es: "Pez óseo acuático",
+    },
+    // --- Invertebrates & Insects ---
+    CladeTarget {
+        taxon_id: INAT_CEPHALOPODA,
+        default_category: "invertebrates",
+        group_label_es: "Cefalópodo marino (pulpo, calamar o sepia)",
     },
     CladeTarget {
         taxon_id: INAT_MOLLUSCA,
@@ -89,15 +377,11 @@ const SYNC_CLADES: &[CladeTarget] = &[
         group_label_es: "Equinodermo marino",
     },
     CladeTarget {
-        taxon_id: INAT_CETACEA,
-        default_category: "aquatic",
-        group_label_es: "Cetáceo marino",
+        taxon_id: INAT_INSECTA,
+        default_category: "insects_arachnids",
+        group_label_es: "Insecto",
     },
-    CladeTarget {
-        taxon_id: INAT_ACTINOPTERYGII,
-        default_category: "aquatic",
-        group_label_es: "Pez óseo acuático",
-    },
+    // --- Broad superclass catch-alls ---
     CladeTarget {
         taxon_id: INAT_MAMMALIA,
         default_category: "mammals",
@@ -118,11 +402,6 @@ const SYNC_CLADES: &[CladeTarget] = &[
         default_category: "reptiles_amphibians",
         group_label_es: "Anfibio",
     },
-    CladeTarget {
-        taxon_id: INAT_INSECTA,
-        default_category: "insects_arachnids",
-        group_label_es: "Insecto",
-    },
 ];
 
 /// Result summary returned after syncing species from NaturaLista into PostgreSQL.
@@ -136,17 +415,23 @@ pub struct NaturaListaSyncReport {
     pub filtered_non_species: usize,
     /// Valid living animal species upserted into `species_catalog`.
     pub upserted_species: usize,
-    /// Total active Collection species available in PostgreSQL after the sync.
+    /// Total active Collection species visible in the UI catalog after the sync.
     pub total_catalog_species: i64,
+    /// Total living animal species indexed on the backend for Scanner & search resolution.
+    #[serde(default)]
+    pub total_backend_indexed: i64,
 }
 
 /// Optional filter when triggering sync (`page` defaults to `1`; `category` limits to one group).
 #[derive(Debug, Default, Clone, Deserialize)]
 pub struct NaturaListaSyncOptions {
-    /// 1-based page per clade (`1` by default, clamped to `1..=20`).
+    /// 1-based page per clade (`1` by default, clamped to `1..=50`).
     pub page: Option<u32>,
     /// Optional single category filter (e.g., `"canids"`, `"felines"`, `"sharks"`).
     pub category: Option<String>,
+    /// When `true`, indexes new species into the backend (`is_backend_indexed = TRUE`) without
+    /// bloating the UI default browse list (`is_naturalista_synced` remains unchanged on existing rows).
+    pub backend_only: Option<bool>,
 }
 
 /// Validates that an iNaturalist taxon is strictly an active, living, binomial `species`
@@ -190,14 +475,26 @@ pub(crate) fn classify_inat_taxon_clade(
     if has(INAT_PRIMATES) {
         return ("primates", "Chordata", "Mammalia");
     }
-    if has(INAT_ELASMOBRANCHII) {
+    if has(INAT_ELASMOBRANCHII)
+        || has(INAT_CARCHARHINIFORMES)
+        || has(INAT_LAMNIFORMES)
+        || has(INAT_MYLIOBATIFORMES)
+    {
         return ("sharks", "Chordata", "Chondrichthyes");
     }
-    if has(INAT_CETACEA) {
+    if has(INAT_CETACEA)
+        || has(INAT_DELPHINIDAE)
+        || has(INAT_BALAENOPTERIDAE)
+        || has(INAT_OTARIIDAE)
+        || has(INAT_PHOCIDAE)
+    {
         return ("aquatic", "Chordata", "Mammalia");
     }
     if has(INAT_CHELONIOIDEA) {
         return ("aquatic", "Chordata", "Reptilia");
+    }
+    if has(INAT_CEPHALOPODA) {
+        return ("invertebrates", "Mollusca", "Cephalopoda");
     }
     if has(INAT_MOLLUSCA) {
         return ("invertebrates", "Mollusca", "Mollusca");
@@ -217,19 +514,55 @@ pub(crate) fn classify_inat_taxon_clade(
     if has(INAT_INSECTA) {
         return ("insects_arachnids", "Arthropoda", "Insecta");
     }
-    if has(INAT_ACTINOPTERYGII) {
+    if has(INAT_SYNGNATHIDAE) || has(INAT_ACTINOPTERYGII) {
         return ("aquatic", "Chordata", "Actinopterygii");
     }
-    if has(INAT_AVES) {
+    if has(INAT_ACCIPITRIFORMES)
+        || has(INAT_FALCONIFORMES)
+        || has(INAT_STRIGIFORMES)
+        || has(INAT_PSITTACIFORMES)
+        || has(INAT_SPHENISCIFORMES)
+        || has(INAT_RAMPHASTIDAE)
+        || has(INAT_TROCHILIDAE)
+        || has(INAT_PHOENICOPTERIFORMES)
+        || has(INAT_AVES)
+    {
         return ("birds", "Chordata", "Aves");
     }
-    if has(INAT_AMPHIBIA) {
+    if has(INAT_CAUDATA) || has(INAT_ANURA) || has(INAT_AMPHIBIA) {
         return ("reptiles_amphibians", "Chordata", "Amphibia");
     }
-    if has(INAT_REPTILIA) {
+    if has(INAT_VARANIDAE)
+        || has(INAT_SCINCIDAE)
+        || has(INAT_CHAMAELEONIDAE)
+        || has(INAT_IGUANIDAE)
+        || has(INAT_CROCODYLIA)
+        || has(INAT_TESTUDINES)
+        || has(INAT_SERPENTES)
+        || has(INAT_REPTILIA)
+    {
         return ("reptiles_amphibians", "Chordata", "Reptilia");
     }
-    if has(INAT_MAMMALIA) {
+    if has(INAT_URSIDAE)
+        || has(INAT_PROBOSCIDEA)
+        || has(INAT_RHINOCEROTIDAE)
+        || has(INAT_HIPPOPOTAMIDAE)
+        || has(INAT_GIRAFFIDAE)
+        || has(INAT_CERVIDAE)
+        || has(INAT_BOVIDAE)
+        || has(INAT_CAMELIDAE)
+        || has(INAT_EQUIDAE)
+        || has(INAT_SUIDAE)
+        || has(INAT_MUSTELIDAE)
+        || has(INAT_PROCYONIDAE)
+        || has(INAT_HYAENIDAE)
+        || has(INAT_XENARTHRA)
+        || has(INAT_DIPROTODONTIA)
+        || has(INAT_DIDELPHIMORPHIA)
+        || has(INAT_CHIROPTERA)
+        || has(INAT_RODENTIA)
+        || has(INAT_MAMMALIA)
+    {
         return ("mammals", "Chordata", "Mammalia");
     }
 
@@ -276,7 +609,7 @@ pub(crate) fn extract_valid_species_from_taxa_json(
 }
 
 /// Synchronizes verified species from `.env`'s connected iNaturalist / NaturaLista endpoint
-/// into `species_catalog` (`taxonomic_rank = 'species'`, `is_naturalista_synced = TRUE`).
+/// into `species_catalog` (`taxonomic_rank = 'species'`).
 pub async fn sync_naturalista_clade_species(
     pool: &PgPool,
     http: &reqwest::Client,
@@ -284,8 +617,9 @@ pub async fn sync_naturalista_clade_species(
     api_token: Option<&str>,
     options: &NaturaListaSyncOptions,
 ) -> Result<NaturaListaSyncReport, AlmanacError> {
-    let page = options.page.unwrap_or(1).clamp(1, 20);
+    let page = options.page.unwrap_or(1).clamp(1, 50);
     let page_str = page.to_string();
+    let backend_only = options.backend_only.unwrap_or(false);
     let category_filter = options
         .category
         .as_deref()
@@ -318,33 +652,51 @@ pub async fn sync_naturalista_clade_species(
 
     for (idx, target) in targets.iter().enumerate() {
         if idx > 0 {
-            tokio::time::sleep(Duration::from_millis(180)).await;
+            tokio::time::sleep(Duration::from_millis(120)).await;
         }
 
         let taxon_param = target.taxon_id.to_string();
-        let mut req = http.get(&endpoint).query(&[
-            ("taxon_id", taxon_param.as_str()),
-            ("rank", "species"),
-            ("is_active", "true"),
-            ("order", "desc"),
-            ("order_by", "observations_count"),
-            ("locale", "es"),
-            ("per_page", "100"),
-            ("page", page_str.as_str()),
-        ]);
-        if let Some(token) = api_token
-            && !token.trim().is_empty()
-        {
-            req = req.bearer_auth(token.trim());
-        }
+        let build_req = || {
+            let mut req = http.get(&endpoint).query(&[
+                ("taxon_id", taxon_param.as_str()),
+                ("rank", "species"),
+                ("is_active", "true"),
+                ("order", "desc"),
+                ("order_by", "observations_count"),
+                ("locale", "es"),
+                ("per_page", "200"),
+                ("page", page_str.as_str()),
+            ]);
+            if let Some(token) = api_token
+                && !token.trim().is_empty()
+            {
+                req = req.bearer_auth(token.trim());
+            }
+            req
+        };
 
-        let resp = match req.send().await {
+        let mut resp = match build_req().send().await {
             Ok(r) => r,
             Err(err) => {
                 tracing::warn!(taxon_id = target.taxon_id, error = %err, "NaturaLista clade sync HTTP error");
                 continue;
             }
         };
+
+        if resp.status().as_u16() == 429 {
+            tracing::warn!(
+                taxon_id = target.taxon_id,
+                "NaturaLista rate limit hit (429), retrying after pause"
+            );
+            tokio::time::sleep(Duration::from_secs(2)).await;
+            resp = match build_req().send().await {
+                Ok(r) => r,
+                Err(err) => {
+                    tracing::warn!(taxon_id = target.taxon_id, error = %err, "NaturaLista clade sync HTTP retry error");
+                    continue;
+                }
+            };
+        }
 
         if !resp.status().is_success() {
             tracing::warn!(
@@ -368,7 +720,7 @@ pub async fn sync_naturalista_clade_species(
             if !seen_ids.insert(taxon.id) {
                 continue;
             }
-            if upsert_synced_inat_taxon(pool, &taxon, target).await? {
+            if upsert_synced_inat_taxon(pool, &taxon, target, !backend_only).await? {
                 upserted_species += 1;
             }
         }
@@ -380,12 +732,19 @@ pub async fn sync_naturalista_clade_species(
     .fetch_one(pool)
     .await?;
 
+    let total_backend_indexed: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM species_catalog WHERE is_core_almanac = TRUE OR is_naturalista_synced = TRUE OR is_backend_indexed = TRUE",
+    )
+    .fetch_one(pool)
+    .await?;
+
     Ok(NaturaListaSyncReport {
         page,
         fetched_candidates,
         filtered_non_species,
         upserted_species,
         total_catalog_species,
+        total_backend_indexed,
     })
 }
 
@@ -393,6 +752,7 @@ async fn upsert_synced_inat_taxon(
     pool: &PgPool,
     taxon: &INatTaxon,
     target: &CladeTarget,
+    visible_in_collection: bool,
 ) -> Result<bool, AlmanacError> {
     let taxon_id = TaxonId::INaturalist(taxon.id);
     let (taxon_source, taxon_external_id) = taxon_db_parts(taxon_id)?;
@@ -445,14 +805,14 @@ async fn upsert_synced_inat_taxon(
             taxon_source, taxon_external_id, scientific_name, common_name,
             phylum, taxonomic_class, average_mass_grams, diet, habitat, defenses,
             iucn_status, summary, category, is_core_almanac, is_naturalista_synced,
-            taxonomic_rank, image_url, photo_attribution, wikipedia_url,
+            is_backend_indexed, taxonomic_rank, image_url, photo_attribution, wikipedia_url,
             naturalista_observations_count
         )
         VALUES (
             $1, $2, $3, $4,
             $5, $6, $7, $8, $9, $10,
-            $11, $12, $13, FALSE, TRUE,
-            'species', $14, $15, $16,
+            $11, $12, $13, FALSE, $18,
+            TRUE, 'species', $14, $15, $16,
             $17
         )
         ON CONFLICT (taxon_source, taxon_external_id) DO UPDATE SET
@@ -468,7 +828,8 @@ async fn upsert_synced_inat_taxon(
                 WHEN species_catalog.iucn_status <> 'UNKNOWN' THEN species_catalog.iucn_status
                 ELSE EXCLUDED.iucn_status
             END,
-            is_naturalista_synced = TRUE,
+            is_naturalista_synced = species_catalog.is_naturalista_synced OR EXCLUDED.is_naturalista_synced,
+            is_backend_indexed = TRUE,
             taxonomic_rank = 'species',
             image_url = COALESCE(species_catalog.image_url, EXCLUDED.image_url),
             photo_attribution = COALESCE(species_catalog.photo_attribution, EXCLUDED.photo_attribution),
@@ -496,6 +857,7 @@ async fn upsert_synced_inat_taxon(
     .bind(&media.photo_attribution)
     .bind(&media.wikipedia_url)
     .bind(media.observations_count)
+    .bind(visible_in_collection)
     .execute(pool)
     .await?;
 
@@ -628,5 +990,33 @@ mod tests {
         let (cat_s, _, class_s) = classify_inat_taxon_clade(&shark, "aquatic");
         assert_eq!(cat_s, "sharks");
         assert_eq!(class_s, "Chondrichthyes");
+
+        let komodo: INatTaxon = serde_json::from_str(
+            r#"{
+                "id": 39449,
+                "name": "Varanus komodoensis",
+                "rank": "species",
+                "rank_level": 10,
+                "ancestor_ids": [1, 2, 26036, 39392]
+            }"#,
+        )
+        .unwrap();
+        let (cat_k, _, class_k) = classify_inat_taxon_clade(&komodo, "reptiles_amphibians");
+        assert_eq!(cat_k, "reptiles_amphibians");
+        assert_eq!(class_k, "Reptilia");
+
+        let harpy: INatTaxon = serde_json::from_str(
+            r#"{
+                "id": 5321,
+                "name": "Harpia harpyja",
+                "rank": "species",
+                "rank_level": 10,
+                "ancestor_ids": [1, 2, 3, 71261]
+            }"#,
+        )
+        .unwrap();
+        let (cat_h, _, class_h) = classify_inat_taxon_clade(&harpy, "birds");
+        assert_eq!(cat_h, "birds");
+        assert_eq!(class_h, "Aves");
     }
 }

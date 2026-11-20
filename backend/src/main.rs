@@ -73,6 +73,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 &NaturaListaSyncOptions {
                     page: Some(1),
                     category: None,
+                    backend_only: None,
                 },
             )
             .await
