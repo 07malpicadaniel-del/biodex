@@ -16,6 +16,10 @@ path = "src/main.rs"
 name = "sync-geozones"
 path = "src/bin/sync_geozones.rs"
 
+[[bin]]
+name = "sync-naturalista"
+path = "src/bin/sync_naturalista.rs"
+
 [dependencies]
 axum = "0.8"
 base64 = "0.22"

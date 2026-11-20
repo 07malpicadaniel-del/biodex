@@ -36,7 +36,7 @@ class BioDexApiClient(
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(25, TimeUnit.SECONDS)
+        .readTimeout(45, TimeUnit.SECONDS)
         .writeTimeout(25, TimeUnit.SECONDS)
         .build()
 
@@ -88,6 +88,11 @@ class BioDexApiClient(
     suspend fun fetchAlmanac(
         userId: String? = null,
         devMode: Boolean = false,
+        query: String? = null,
+        category: String? = null,
+        capturedFilter: String? = null,
+        limit: Int? = 60,
+        offset: Int = 0,
     ): Result<AlmanacListResponse> =
         executeGet("/api/v1/almanac") { builder ->
             if (!userId.isNullOrBlank()) {
@@ -95,6 +100,44 @@ class BioDexApiClient(
             }
             if (devMode) {
                 builder.addQueryParameter("dev_mode", "true")
+            }
+            if (!query.isNullOrBlank()) {
+                builder.addQueryParameter("q", query.trim())
+            }
+            if (!category.isNullOrBlank()) {
+                builder.addQueryParameter("category", category)
+            }
+            if (!capturedFilter.isNullOrBlank()) {
+                builder.addQueryParameter("captured_filter", capturedFilter)
+            }
+            if (limit != null) {
+                builder.addQueryParameter("limit", limit.toString())
+            }
+            if (offset > 0) {
+                builder.addQueryParameter("offset", offset.toString())
+            }
+        }
+
+    suspend fun syncNaturaListaSpecies(
+        page: Int = 1,
+        category: String? = null,
+    ): Result<NaturaListaSyncResponse> =
+        withContext(Dispatchers.IO) {
+            executeWithEndpointFailover { baseUrl ->
+                val builder = "$baseUrl/api/v1/almanac/naturalista/sync".toHttpUrl().newBuilder()
+                builder.addQueryParameter("page", page.toString())
+                if (!category.isNullOrBlank()) {
+                    builder.addQueryParameter("category", category)
+                }
+                val emptyBody = ByteArray(0).toRequestBody(null)
+                val req = Request.Builder().url(builder.build()).post(emptyBody).build()
+                client.newCall(req).execute().use { resp ->
+                    val body = resp.body?.string().orEmpty()
+                    if (!resp.isSuccessful) {
+                        throw ApiHttpException(friendlyApiError(resp.code, body))
+                    }
+                    json.decodeFromString<NaturaListaSyncResponse>(body)
+                }
             }
         }
 

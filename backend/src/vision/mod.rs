@@ -1033,6 +1033,10 @@ pub(crate) struct INatTaxon {
     pub(crate) default_photo: Option<INatDefaultPhoto>,
     pub(crate) wikipedia_url: Option<String>,
     pub(crate) observations_count: Option<i64>,
+    pub(crate) is_active: Option<bool>,
+    pub(crate) extinct: Option<bool>,
+    #[serde(default)]
+    pub(crate) ancestor_ids: Vec<u64>,
     #[serde(default)]
     pub(crate) ancestors: Vec<INatAncestor>,
 }
@@ -1365,16 +1369,16 @@ fn extract_wikidata_iucn(claims: &serde_json::Value) -> Option<IucnStatus> {
     None
 }
 
-struct InferredTaxonomyDefaults {
-    phylum: &'static str,
-    taxonomic_class: &'static str,
-    habitat: Habitat,
-    diet: Diet,
-    average_mass_grams: u64,
-    defenses: BTreeSet<DefenseTrait>,
+pub(crate) struct InferredTaxonomyDefaults {
+    pub(crate) phylum: &'static str,
+    pub(crate) taxonomic_class: &'static str,
+    pub(crate) habitat: Habitat,
+    pub(crate) diet: Diet,
+    pub(crate) average_mass_grams: u64,
+    pub(crate) defenses: BTreeSet<DefenseTrait>,
 }
 
-fn infer_defaults_from_taxonomy(
+pub(crate) fn infer_defaults_from_taxonomy(
     phylum_or_iconic: &str,
     class_name: &str,
     order: Option<&str>,

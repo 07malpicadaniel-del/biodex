@@ -13,7 +13,8 @@ use axum::http::{Request, StatusCode};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use biodex_backend::almanac::{
-    AlmanacItemDto, AlmanacListResponse, NaturaListaDiscoveryResponse, sync_almanac_catalog,
+    AlmanacItemDto, AlmanacListResponse, NaturaListaDiscoveryResponse, NaturaListaSyncReport,
+    sync_almanac_catalog,
 };
 use biodex_backend::config::TaxonomyEndpoints;
 use biodex_backend::load_mods_from_dir;
@@ -151,6 +152,7 @@ fn build_app(pool: PgPool) -> Router {
         mods,
         vision,
         taxonomy_endpoints: TaxonomyEndpoints::default(),
+        inaturalist_api_token: None,
         max_moire_score: 0.35,
         enable_live_range_fallback: false,
     })
@@ -486,16 +488,19 @@ async fn almanac_endpoint_lists_24_basic_species_filters_and_tracks_discovery() 
             scientific_name: "Ambystoma mexicanum",
         }),
         taxonomy_endpoints: TaxonomyEndpoints::default(),
+        inaturalist_api_token: None,
         max_moire_score: 0.35,
         enable_live_range_fallback: false,
     });
 
-    // 1. Fresh user sees all 92 entries with 0 discovered.
+    // 1. Fresh user sees all 92 core Almanac entries with 0 discovered (isolated from live sync rows).
     let list_resp = app
         .clone()
         .oneshot(
             Request::builder()
-                .uri(format!("/api/v1/almanac?user_id={test_user}"))
+                .uri(format!(
+                    "/api/v1/almanac?user_id={test_user}&include_naturalista=false"
+                ))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -516,7 +521,7 @@ async fn almanac_endpoint_lists_24_basic_species_filters_and_tracks_discovery() 
         .oneshot(
             Request::builder()
                 .uri(format!(
-                    "/api/v1/almanac?category=reptiles_amphibians&q=ajolote&user_id={test_user}"
+                    "/api/v1/almanac?category=reptiles_amphibians&q=ajolote&user_id={test_user}&include_naturalista=false"
                 ))
                 .body(Body::empty())
                 .unwrap(),
@@ -538,7 +543,7 @@ async fn almanac_endpoint_lists_24_basic_species_filters_and_tracks_discovery() 
         .oneshot(
             Request::builder()
                 .uri(format!(
-                    "/api/v1/almanac?category=sharks&user_id={test_user}"
+                    "/api/v1/almanac?category=sharks&user_id={test_user}&include_naturalista=false"
                 ))
                 .body(Body::empty())
                 .unwrap(),
@@ -755,6 +760,7 @@ async fn subspecies_rollup_enriches_new_species_and_respects_geozones() {
             0.35,
         )),
         taxonomy_endpoints: endpoints.clone(),
+        inaturalist_api_token: None,
         max_moire_score: 0.35,
         enable_live_range_fallback: false,
     });
@@ -882,6 +888,7 @@ async fn subspecies_rollup_enriches_new_species_and_respects_geozones() {
             0.35,
         )),
         taxonomy_endpoints: endpoints,
+        inaturalist_api_token: None,
         max_moire_score: 0.35,
         enable_live_range_fallback: false,
     });
@@ -999,6 +1006,7 @@ async fn dev_mode_unlocks_collection_and_naturalista_endpoints_work() {
             gbif_base_url: format!("http://{mock_addr}/gbif"),
             wikidata_api_url: format!("http://{mock_addr}/wikidata"),
         },
+        inaturalist_api_token: None,
         max_moire_score: 0.35,
         enable_live_range_fallback: true,
     });
@@ -1106,4 +1114,294 @@ async fn dev_mode_unlocks_collection_and_naturalista_endpoints_work() {
         minted.naturalista_url.as_deref(),
         Some("https://www.naturalista.mx/taxa/35342")
     );
+}
+
+#[tokio::test]
+async fn naturalista_clade_sync_filters_subspecies_and_supports_pagination() {
+    use axum::http::HeaderMap;
+    use axum::routing::get;
+    use sqlx::Row;
+
+    let pool = setup_test_db().await;
+    let mods_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../mods");
+    let mods = Arc::new(load_mods_from_dir(&mods_dir).unwrap());
+    sync_almanac_catalog(&pool, &mods).await.unwrap();
+
+    // Ensure synthetic test taxon IDs do not linger across test runs.
+    sqlx::query(
+        "DELETE FROM species_catalog WHERE taxon_source = 'i_naturalist' AND taxon_external_id BETWEEN 9000001 AND 9000010",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let mock_api = Router::new().route(
+        "/inat/taxa",
+        get(
+            |headers: HeaderMap, axum::extract::RawQuery(raw_q): axum::extract::RawQuery| async move {
+                assert_eq!(
+                    headers.get("authorization").and_then(|v| v.to_str().ok()),
+                    Some("Bearer test-inat-token")
+                );
+                let q = raw_q.unwrap_or_default();
+                if q.contains("taxon_id=42043") {
+                    axum::Json(json!({
+                        "results": [
+                            {
+                                "id": 9_000_001,
+                                "name": "Vulpes velox",
+                                "preferred_common_name": "Zorro Veloz Prueba",
+                                "rank": "species",
+                                "rank_level": 10,
+                                "is_active": true,
+                                "extinct": false,
+                                "ancestor_ids": [42043],
+                                "observations_count": 2100,
+                                "default_photo": { "medium_url": "https://example.org/vulpes.jpg" }
+                            },
+                            {
+                                "id": 9_000_002,
+                                "name": "Canis lupus baileyi",
+                                "preferred_common_name": "Lobo mexicano (subespecie)",
+                                "rank": "subspecies",
+                                "rank_level": 5,
+                                "is_active": true,
+                                "extinct": false,
+                                "ancestor_ids": [42043],
+                                "default_photo": { "medium_url": "https://example.org/subsp.jpg" }
+                            },
+                            {
+                                "id": 9_000_003,
+                                "name": "Aenocyon dirus",
+                                "rank": "species",
+                                "rank_level": 10,
+                                "is_active": true,
+                                "extinct": true,
+                                "ancestor_ids": [42043],
+                                "default_photo": { "medium_url": "https://example.org/fossil.jpg" }
+                            },
+                            {
+                                "id": 9_000_004,
+                                "name": "Canis × latrans",
+                                "rank": "species",
+                                "rank_level": 10,
+                                "is_active": true,
+                                "extinct": false,
+                                "ancestor_ids": [42043],
+                                "default_photo": { "medium_url": "https://example.org/hybrid.jpg" }
+                            }
+                        ]
+                    }))
+                } else if q.contains("taxon_id=47273") {
+                    axum::Json(json!({
+                        "results": [{
+                            "id": 9_000_005,
+                            "name": "Carcharias taurus",
+                            "preferred_common_name": "Tiburón Toro Arena Prueba",
+                            "rank": "species",
+                            "rank_level": 10,
+                            "is_active": true,
+                            "extinct": false,
+                            "ancestor_ids": [47273],
+                            "observations_count": 5000,
+                            "default_photo": { "medium_url": "https://example.org/shark.jpg" }
+                        }]
+                    }))
+                } else if q.contains("taxon_id=43367") {
+                    axum::Json(json!({
+                        "results": [{
+                            "id": 43_584,
+                            "name": "Homo sapiens",
+                            "rank": "species",
+                            "rank_level": 10,
+                            "is_active": true,
+                            "extinct": false,
+                            "ancestor_ids": [43367],
+                            "default_photo": { "medium_url": "https://example.org/human.jpg" }
+                        }]
+                    }))
+                } else {
+                    axum::Json(json!({ "results": [] }))
+                }
+            },
+        ),
+    );
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let mock_addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        let _ = axum::serve(listener, mock_api).await;
+    });
+
+    let app = router(AppState {
+        db: pool.clone(),
+        http: reqwest::Client::new(),
+        mods,
+        vision: Arc::new(MockVisionClassifier {
+            taxon_id: TaxonId::INaturalist(26_777),
+            scientific_name: "Ambystoma mexicanum",
+        }),
+        taxonomy_endpoints: TaxonomyEndpoints {
+            inaturalist_base_url: format!("http://{mock_addr}/inat"),
+            gbif_base_url: format!("http://{mock_addr}/gbif"),
+            wikidata_api_url: format!("http://{mock_addr}/wikidata"),
+        },
+        inaturalist_api_token: Some("test-inat-token".to_string()),
+        max_moire_score: 0.35,
+        enable_live_range_fallback: false,
+    });
+
+    // 1. Sync canids: keeps 1 living species (9000001) and filters subspecies/extinct/hybrid (3).
+    let canid_resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/almanac/naturalista/sync?page=1&category=canids")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(canid_resp.status(), StatusCode::OK);
+    let canid_bytes = axum::body::to_bytes(canid_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let canid_report: NaturaListaSyncReport = serde_json::from_slice(&canid_bytes).unwrap();
+    assert_eq!(canid_report.fetched_candidates, 4);
+    assert_eq!(canid_report.filtered_non_species, 3);
+    assert_eq!(canid_report.upserted_species, 1);
+
+    // 2. Sync sharks: upserts 1 shark (9000005).
+    let shark_resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/almanac/naturalista/sync?page=1&category=sharks")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(shark_resp.status(), StatusCode::OK);
+    let shark_bytes = axum::body::to_bytes(shark_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let shark_report: NaturaListaSyncReport = serde_json::from_slice(&shark_bytes).unwrap();
+    assert_eq!(shark_report.upserted_species, 1);
+
+    // 3. Sync primates: Homo sapiens (43584) is filtered out.
+    let primate_resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/almanac/naturalista/sync?page=1&category=primates")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(primate_resp.status(), StatusCode::OK);
+    let primate_bytes = axum::body::to_bytes(primate_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let primate_report: NaturaListaSyncReport = serde_json::from_slice(&primate_bytes).unwrap();
+    assert_eq!(primate_report.upserted_species, 0);
+    assert_eq!(primate_report.filtered_non_species, 1);
+
+    // 4. Verify database rows and exclusion of subspecies/extinct/hybrid/human.
+    let db_rows = sqlx::query(
+        "SELECT taxon_external_id, taxonomic_rank, is_naturalista_synced, category FROM species_catalog WHERE taxon_source = 'i_naturalist' AND taxon_external_id IN (43584, 9000001, 9000002, 9000003, 9000004, 9000005) ORDER BY taxon_external_id",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(db_rows.len(), 2);
+    assert_eq!(
+        db_rows[0].try_get::<i64, _>("taxon_external_id").unwrap(),
+        9_000_001
+    );
+    assert_eq!(
+        db_rows[0].try_get::<String, _>("taxonomic_rank").unwrap(),
+        "species"
+    );
+    assert!(
+        db_rows[0]
+            .try_get::<bool, _>("is_naturalista_synced")
+            .unwrap()
+    );
+    assert_eq!(
+        db_rows[0].try_get::<String, _>("category").unwrap(),
+        "canids"
+    );
+    assert_eq!(
+        db_rows[1].try_get::<i64, _>("taxon_external_id").unwrap(),
+        9_000_005
+    );
+    assert_eq!(
+        db_rows[1].try_get::<String, _>("category").unwrap(),
+        "sharks"
+    );
+
+    // 5. Verify pagination, category_counts, and captured_filter on GET /api/v1/almanac.
+    let page_resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/almanac?dev_mode=true&limit=5&offset=0")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(page_resp.status(), StatusCode::OK);
+    let page_bytes = axum::body::to_bytes(page_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let page_list: AlmanacListResponse = serde_json::from_slice(&page_bytes).unwrap();
+    assert_eq!(page_list.entries.len(), 5);
+    assert_eq!(page_list.matched_count, page_list.total_species);
+    assert!(
+        page_list
+            .category_counts
+            .get("canids")
+            .copied()
+            .unwrap_or(0)
+            >= 7
+    );
+    assert!(
+        page_list
+            .category_counts
+            .get("sharks")
+            .copied()
+            .unwrap_or(0)
+            >= 9
+    );
+
+    let missing_in_dev_resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/almanac?dev_mode=true&captured_filter=missing")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(missing_in_dev_resp.status(), StatusCode::OK);
+    let missing_bytes = axum::body::to_bytes(missing_in_dev_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let missing_list: AlmanacListResponse = serde_json::from_slice(&missing_bytes).unwrap();
+    assert_eq!(missing_list.matched_count, 0);
+    assert!(missing_list.entries.is_empty());
+
+    // Cleanup synthetic records so local dev Postgres remains populated strictly with real species.
+    sqlx::query(
+        "DELETE FROM species_catalog WHERE taxon_source = 'i_naturalist' AND taxon_external_id IN (9000001, 9000005)",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
 }

@@ -22,8 +22,9 @@ use uuid::Uuid;
 
 use crate::almanac::{
     AlmanacError, AlmanacFilter, AlmanacItemDto, AlmanacListResponse, NaturaListaDiscoveryResponse,
-    get_almanac_entry, inspect_naturalista_taxon, list_almanac, nearby_naturalista_fauna,
-    search_naturalista_fauna,
+    NaturaListaSyncOptions, NaturaListaSyncReport, get_almanac_entry, inspect_naturalista_taxon,
+    list_almanac, nearby_naturalista_fauna, search_naturalista_fauna,
+    sync_naturalista_clade_species,
 };
 use crate::config::TaxonomyEndpoints;
 use crate::error::ApiError;
@@ -51,6 +52,8 @@ pub struct AppState {
     pub vision: Arc<dyn TaxonomyClassifier>,
     /// External taxonomy/enrichment endpoints (iNaturalist, GBIF, Wikidata).
     pub taxonomy_endpoints: TaxonomyEndpoints,
+    /// Optional `.env` iNaturalist / NaturaLista API token for authenticated taxa requests.
+    pub inaturalist_api_token: Option<String>,
     /// Maximum allowed anti-Moiré screen detection score.
     pub max_moire_score: f32,
     /// Enables regional NaturaLista occurrence fallback when a species lacks curated PostGIS ranges.
@@ -154,6 +157,10 @@ pub fn router(state: AppState) -> Router {
             get(nearby_naturalista_handler),
         )
         .route(
+            "/api/v1/almanac/naturalista/sync",
+            post(sync_naturalista_handler),
+        )
+        .route(
             "/api/v1/almanac/naturalista/taxon/{id}",
             get(inspect_naturalista_handler),
         )
@@ -239,6 +246,22 @@ async fn nearby_naturalista_handler(
     .await
     .map_err(map_almanac_error)?;
     Ok(Json(response))
+}
+
+async fn sync_naturalista_handler(
+    State(state): State<AppState>,
+    Query(options): Query<NaturaListaSyncOptions>,
+) -> Result<Json<NaturaListaSyncReport>, ApiError> {
+    let report = sync_naturalista_clade_species(
+        &state.db,
+        &state.http,
+        &state.taxonomy_endpoints.inaturalist_base_url,
+        state.inaturalist_api_token.as_deref(),
+        &options,
+    )
+    .await
+    .map_err(map_almanac_error)?;
+    Ok(Json(report))
 }
 
 async fn inspect_naturalista_handler(

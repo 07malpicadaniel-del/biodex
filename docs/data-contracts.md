@@ -51,13 +51,15 @@ Este documento registra los contratos de datos aprobados por el Arquitecto de So
 ## 4. Colección / Almanaque e Integración NaturaLista (`backend` + `mobile-android`)
 
 - **Visibilidad y Login con Modo Dev:** El cliente muestra pantalla de Login al iniciar; cuando `dev_mode=true`, `GET /api/v1/almanac` desbloquea todas las especies catalogadas para visualizar la colección completa con fotografías y fichas biológicas (sin mostrar estadísticas ni movimientos de combate en la UI hasta Fase 2).
-- **Persistencia:** Migraciones `0002_almanac_metadata.sql` y `0004_species_media_and_naturalista.sql` extienden `species_catalog` (`summary`, `category`, `region_hint`, `is_core_almanac`, `image_url`, `photo_attribution`, `wikipedia_url`, `naturalista_observations_count`), sincronizándose al arrancar el backend desde `ModRegistry` e `INATURALIST_TAXA_URL`.
-- **Endpoints HTTP:**
-  - `GET /api/v1/almanac?q=&category=&habitat=&user_id=&dev_mode=`
+- **Persistencia:** Migraciones `0002_almanac_metadata.sql`, `0004_species_media_and_naturalista.sql` y `0005_naturalista_synced_catalog.sql` extienden `species_catalog` (`summary`, `category`, `region_hint`, `is_core_almanac`, `image_url`, `photo_attribution`, `wikipedia_url`, `naturalista_observations_count`, `taxonomic_rank = 'species'`, `is_naturalista_synced`), sincronizándose desde `ModRegistry` y la conexión `.env` a NaturaLista (`INATURALIST_TAXA_URL` + `INATURALIST_API_TOKEN`) con exclusión estricta de subespecies, híbridos, taxones extintos y flora/Homo sapiens.
+- **Endpoints HTTP y CLI de Colección:**
+  - `GET /api/v1/almanac?q=&category=&habitat=&user_id=&dev_mode=&captured_filter=&include_naturalista=&limit=&offset=` (retorna `matched_count` y `category_counts`)
+  - `POST /api/v1/almanac/naturalista/sync?page=&category=` (sincroniza clados verificados desde NaturaLista en rango `species`)
   - `GET /api/v1/almanac/{source}/{taxon_id}?user_id=&dev_mode=`
   - `GET /api/v1/almanac/naturalista/search?q=&user_id=&dev_mode=`
   - `GET /api/v1/almanac/naturalista/nearby?lat=&lng=&radius_km=&user_id=&dev_mode=`
   - `GET /api/v1/almanac/naturalista/taxon/{id}?user_id=&dev_mode=`
+  - Binario CLI: `cargo run --bin sync-naturalista -- --pages 1 [--category <clade>]`
 
 ---
 

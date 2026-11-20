@@ -8,6 +8,8 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -89,8 +91,14 @@ data class BioDexUiState(
     val errorMessage: String? = null,
     val collectionSubTab: CollectionSubTab = CollectionSubTab.Almanac,
     val almanacLoading: Boolean = false,
+    val almanacLoadingMore: Boolean = false,
+    val almanacSyncingMore: Boolean = false,
+    val almanacLastSyncedPage: Int = 0,
+    val almanacSyncMessage: String? = null,
     val almanacTotalSpecies: Int = 0,
     val almanacDiscoveredCount: Int = 0,
+    val almanacMatchedCount: Int = 0,
+    val almanacCategoryCounts: Map<String, Int> = emptyMap(),
     val almanacEntries: List<AlmanacItemDto> = emptyList(),
     val almanacSearchQuery: String = "",
     val almanacCategoryFilter: AlmanacCategoryFilter = AlmanacCategoryFilter.All,
@@ -150,8 +158,14 @@ data class BioDexUiState(
             errorMessage == other.errorMessage &&
             collectionSubTab == other.collectionSubTab &&
             almanacLoading == other.almanacLoading &&
+            almanacLoadingMore == other.almanacLoadingMore &&
+            almanacSyncingMore == other.almanacSyncingMore &&
+            almanacLastSyncedPage == other.almanacLastSyncedPage &&
+            almanacSyncMessage == other.almanacSyncMessage &&
             almanacTotalSpecies == other.almanacTotalSpecies &&
             almanacDiscoveredCount == other.almanacDiscoveredCount &&
+            almanacMatchedCount == other.almanacMatchedCount &&
+            almanacCategoryCounts == other.almanacCategoryCounts &&
             almanacEntries == other.almanacEntries &&
             almanacSearchQuery == other.almanacSearchQuery &&
             almanacCategoryFilter == other.almanacCategoryFilter &&
@@ -186,8 +200,14 @@ data class BioDexUiState(
         result = 31 * result + (errorMessage?.hashCode() ?: 0)
         result = 31 * result + collectionSubTab.hashCode()
         result = 31 * result + almanacLoading.hashCode()
+        result = 31 * result + almanacLoadingMore.hashCode()
+        result = 31 * result + almanacSyncingMore.hashCode()
+        result = 31 * result + almanacLastSyncedPage
+        result = 31 * result + (almanacSyncMessage?.hashCode() ?: 0)
         result = 31 * result + almanacTotalSpecies
         result = 31 * result + almanacDiscoveredCount
+        result = 31 * result + almanacMatchedCount
+        result = 31 * result + almanacCategoryCounts.hashCode()
         result = 31 * result + almanacEntries.hashCode()
         result = 31 * result + almanacSearchQuery.hashCode()
         result = 31 * result + almanacCategoryFilter.hashCode()
@@ -225,6 +245,8 @@ class BioDexViewModel(application: Application) : AndroidViewModel(application) 
     )
     private val keystoreSigner = HardwareKeystoreSigner()
     private val telemetryTracker = SensorTelemetryTracker(application)
+    private var almanacSearchDebounceJob: Job? = null
+    private var almanacFetchGeneration: Long = 0L
 
     private val _uiState = MutableStateFlow(
         BioDexUiState(
@@ -308,6 +330,10 @@ class BioDexViewModel(application: Application) : AndroidViewModel(application) 
                 lastCaptureResponse = null,
                 capturedJpegBytes = null,
                 errorMessage = null,
+                almanacMatchedCount = 0,
+                almanacCategoryCounts = emptyMap(),
+                almanacLastSyncedPage = 0,
+                almanacSyncMessage = null,
                 almanacEntries = emptyList(),
                 naturalistaSearchResults = null,
                 naturalistaNearbyResults = null,
@@ -425,20 +451,42 @@ class BioDexViewModel(application: Application) : AndroidViewModel(application) 
 
     fun refreshAlmanac() {
         val stateSnapshot = _uiState.value
+        val generation = ++almanacFetchGeneration
+        val capturedFilter = serverCapturedFilter(stateSnapshot.almanacCaptureFilter)
         viewModelScope.launch {
-            _uiState.update { it.copy(almanacLoading = true, almanacError = null) }
+            _uiState.update {
+                it.copy(
+                    almanacLoading = true,
+                    almanacLoadingMore = false,
+                    almanacError = null,
+                )
+            }
             val result = apiClient.fetchAlmanac(
                 userId = stateSnapshot.playerId,
                 devMode = stateSnapshot.isDevMode,
+                query = stateSnapshot.almanacSearchQuery,
+                category = stateSnapshot.almanacCategoryFilter.apiKey,
+                capturedFilter = capturedFilter,
+                limit = ALMANAC_PAGE_SIZE,
+                offset = 0,
             )
+            if (generation != almanacFetchGeneration) return@launch
             _uiState.update { state ->
                 result.fold(
                     onSuccess = { almanac ->
                         val active = apiClient.activeBaseUrl()
+                        val resolvedMatched = if (almanac.matchedCount > 0 || almanac.entries.isEmpty()) {
+                            almanac.matchedCount
+                        } else {
+                            almanac.entries.size
+                        }
                         state.copy(
                             almanacLoading = false,
+                            almanacLoadingMore = false,
                             almanacTotalSpecies = almanac.totalSpecies,
                             almanacDiscoveredCount = almanac.discoveredCount,
+                            almanacMatchedCount = resolvedMatched,
+                            almanacCategoryCounts = almanac.categoryCounts,
                             almanacEntries = almanac.entries,
                             activeBackendUrl = active,
                             backendOnline = true,
@@ -448,12 +496,118 @@ class BioDexViewModel(application: Application) : AndroidViewModel(application) 
                     onFailure = { err ->
                         state.copy(
                             almanacLoading = false,
+                            almanacLoadingMore = false,
                             almanacError = err.message ?: "No se pudo cargar la colección",
                         )
                     },
                 )
             }
         }
+    }
+
+    fun loadMoreAlmanac() {
+        val stateSnapshot = _uiState.value
+        if (stateSnapshot.almanacLoading ||
+            stateSnapshot.almanacLoadingMore ||
+            stateSnapshot.almanacEntries.size >= stateSnapshot.almanacMatchedCount
+        ) {
+            return
+        }
+        val generation = almanacFetchGeneration
+        val currentOffset = stateSnapshot.almanacEntries.size
+        val capturedFilter = serverCapturedFilter(stateSnapshot.almanacCaptureFilter)
+        viewModelScope.launch {
+            _uiState.update { it.copy(almanacLoadingMore = true) }
+            val result = apiClient.fetchAlmanac(
+                userId = stateSnapshot.playerId,
+                devMode = stateSnapshot.isDevMode,
+                query = stateSnapshot.almanacSearchQuery,
+                category = stateSnapshot.almanacCategoryFilter.apiKey,
+                capturedFilter = capturedFilter,
+                limit = ALMANAC_PAGE_SIZE,
+                offset = currentOffset,
+            )
+            if (generation != almanacFetchGeneration) return@launch
+            _uiState.update { state ->
+                result.fold(
+                    onSuccess = { almanac ->
+                        val merged = (state.almanacEntries + almanac.entries)
+                            .distinctBy { "${it.taxonId.source}:${it.taxonId.id}" }
+                        state.copy(
+                            almanacLoadingMore = false,
+                            almanacTotalSpecies = almanac.totalSpecies,
+                            almanacDiscoveredCount = almanac.discoveredCount,
+                            almanacMatchedCount = almanac.matchedCount.coerceAtLeast(merged.size),
+                            almanacCategoryCounts = almanac.categoryCounts,
+                            almanacEntries = merged,
+                        )
+                    },
+                    onFailure = { err ->
+                        state.copy(
+                            almanacLoadingMore = false,
+                            almanacSyncMessage = err.message ?: "Error al cargar más especies",
+                        )
+                    },
+                )
+            }
+        }
+    }
+
+    fun syncMoreNaturaLista() {
+        val stateSnapshot = _uiState.value
+        if (stateSnapshot.almanacSyncingMore) return
+        val nextPage = if (stateSnapshot.almanacTotalSpecies <= 120) {
+            1
+        } else {
+            (stateSnapshot.almanacLastSyncedPage.coerceAtLeast(1) + 1).coerceAtMost(10)
+        }
+        val activeCategory = stateSnapshot.almanacCategoryFilter.apiKey
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    almanacSyncingMore = true,
+                    almanacSyncMessage = "Consultando especies en NaturaLista (pág. $nextPage)...",
+                )
+            }
+            val result = apiClient.syncNaturaListaSpecies(
+                page = nextPage,
+                category = activeCategory,
+            )
+            var shouldRefresh = false
+            _uiState.update { state ->
+                result.fold(
+                    onSuccess = { report ->
+                        shouldRefresh = true
+                        state.copy(
+                            almanacSyncingMore = false,
+                            almanacLastSyncedPage = report.page,
+                            almanacSyncMessage = if (report.upsertedSpecies > 0) {
+                                "+${report.upsertedSpecies} especies sincronizadas (0 subespecies)"
+                            } else {
+                                "Catálogo al día (${report.totalCatalogSpecies} especies reales)"
+                            },
+                        )
+                    },
+                    onFailure = { err ->
+                        state.copy(
+                            almanacSyncingMore = false,
+                            almanacSyncMessage = err.message ?: "No se pudo sincronizar NaturaLista",
+                        )
+                    },
+                )
+            }
+            if (shouldRefresh) {
+                refreshAlmanac()
+            }
+        }
+    }
+
+    private fun serverCapturedFilter(filter: AlmanacCaptureFilter): String? = when (filter) {
+        AlmanacCaptureFilter.All -> null
+        AlmanacCaptureFilter.Captured,
+        AlmanacCaptureFilter.WildOnly,
+        AlmanacCaptureFilter.SanctuaryOnly -> "captured"
+        AlmanacCaptureFilter.Undiscovered -> "missing"
     }
 
     fun updateNaturaListaSearchQuery(query: String) {
@@ -572,14 +726,23 @@ class BioDexViewModel(application: Application) : AndroidViewModel(application) 
 
     fun updateAlmanacSearch(query: String) {
         _uiState.update { it.copy(almanacSearchQuery = query) }
+        almanacSearchDebounceJob?.cancel()
+        almanacSearchDebounceJob = viewModelScope.launch {
+            delay(280)
+            refreshAlmanac()
+        }
     }
 
     fun selectAlmanacCategory(filter: AlmanacCategoryFilter) {
+        almanacSearchDebounceJob?.cancel()
         _uiState.update { it.copy(almanacCategoryFilter = filter) }
+        refreshAlmanac()
     }
 
     fun selectAlmanacCaptureFilter(filter: AlmanacCaptureFilter) {
+        almanacSearchDebounceJob?.cancel()
         _uiState.update { it.copy(almanacCaptureFilter = filter) }
+        refreshAlmanac()
     }
 
     fun openAlmanacDetail(entry: AlmanacItemDto) {
@@ -720,5 +883,6 @@ class BioDexViewModel(application: Application) : AndroidViewModel(application) 
         const val PREFS_NAME = "biodex_prefs"
         const val KEY_CUSTOM_SERVER_URL = "custom_server_url"
         const val KEY_LAST_EXPLORER_ID = "last_explorer_id"
+        const val ALMANAC_PAGE_SIZE = 60
     }
 }

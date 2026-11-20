@@ -153,6 +153,8 @@ class MainActivity : ComponentActivity() {
                                     onSubmitNaturaListaSearch = vm::submitNaturaListaSearch,
                                     onRefreshNearbyNaturaLista = vm::refreshNearbyNaturaLista,
                                     onInspectNaturaListaSpecies = vm::inspectNaturaListaSpecies,
+                                    onLoadMore = vm::loadMoreAlmanac,
+                                    onSyncMoreNaturaLista = vm::syncMoreNaturaLista,
                                     modifier = contentModifier,
                                 )
 

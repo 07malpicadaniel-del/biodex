@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -31,6 +32,7 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.LocationOn
@@ -54,7 +56,9 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -85,6 +89,8 @@ fun AlmanacScreen(
     onSubmitNaturaListaSearch: () -> Unit,
     onRefreshNearbyNaturaLista: () -> Unit,
     onInspectNaturaListaSpecies: (NaturaListaSpeciesDto) -> Unit,
+    onLoadMore: () -> Unit = {},
+    onSyncMoreNaturaLista: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -260,6 +266,8 @@ fun AlmanacScreen(
                         onSelectCategory = onSelectCategory,
                         onSelectCaptureFilter = onSelectCaptureFilter,
                         onOpenDetail = onOpenDetail,
+                        onLoadMore = onLoadMore,
+                        onSyncMoreNaturaLista = onSyncMoreNaturaLista,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -325,13 +333,50 @@ private fun AlmanacCollectionBody(
     onSelectCategory: (AlmanacCategoryFilter) -> Unit,
     onSelectCaptureFilter: (AlmanacCaptureFilter) -> Unit,
     onOpenDetail: (AlmanacItemDto) -> Unit,
+    onLoadMore: () -> Unit,
+    onSyncMoreNaturaLista: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val entries = uiState.filteredAlmanacEntries
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(
+        uiState.almanacCategoryFilter,
+        uiState.almanacCaptureFilter,
+        uiState.almanacSearchQuery,
+    ) {
+        if (listState.firstVisibleItemIndex > 0) {
+            listState.scrollToItem(0)
+        }
+    }
+
+    LaunchedEffect(
+        listState,
+        entries.size,
+        uiState.almanacEntries.size,
+        uiState.almanacMatchedCount,
+        uiState.almanacLoading,
+        uiState.almanacLoadingMore,
+    ) {
+        snapshotFlow {
+            val layout = listState.layoutInfo
+            val total = layout.totalItemsCount
+            val lastVisible = layout.visibleItemsInfo.lastOrNull()?.index ?: 0
+            total > 0 && lastVisible >= total - 6
+        }.collect { nearEnd ->
+            if (nearEnd &&
+                !uiState.almanacLoading &&
+                !uiState.almanacLoadingMore &&
+                uiState.almanacEntries.size < uiState.almanacMatchedCount
+            ) {
+                onLoadMore()
+            }
+        }
+    }
 
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         OutlinedTextField(
             value = uiState.almanacSearchQuery,
@@ -402,10 +447,13 @@ private fun AlmanacCollectionBody(
             }
         }
 
-        // Taxonomic category filter row with counts
-        val categoryCounts = remember(uiState.almanacEntries) {
-            uiState.almanacEntries.groupingBy { it.category }.eachCount()
+        // Taxonomic category filter row backed by full catalog category_counts
+        val totalAllSpecies = if (uiState.almanacTotalSpecies > 0) {
+            uiState.almanacTotalSpecies
+        } else {
+            uiState.almanacEntries.size
         }
+        val hasCategoryCounts = uiState.almanacCategoryCounts.isNotEmpty() || totalAllSpecies > 0
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -414,11 +462,12 @@ private fun AlmanacCollectionBody(
         ) {
             AlmanacCategoryFilter.entries.forEach { cat ->
                 val count = if (cat.apiKey == null) {
-                    uiState.almanacEntries.size
+                    totalAllSpecies
                 } else {
-                    categoryCounts[cat.apiKey] ?: 0
+                    uiState.almanacCategoryCounts[cat.apiKey]
+                        ?: uiState.almanacEntries.count { it.category == cat.apiKey }
                 }
-                val chipText = if (uiState.almanacEntries.isNotEmpty()) {
+                val chipText = if (hasCategoryCounts) {
                     "${cat.label} ($count)"
                 } else {
                     cat.label
@@ -443,8 +492,74 @@ private fun AlmanacCollectionBody(
             }
         }
 
+        // Compact status bar + NaturaLista sync trigger
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            val matchedTotal = uiState.almanacMatchedCount.coerceAtLeast(entries.size)
+            Text(
+                text = uiState.almanacSyncMessage
+                    ?: "Mostrando ${entries.size} de $matchedTotal · Sin subespecies",
+                style = MaterialTheme.typography.labelSmall,
+                color = BioDexColors.TextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Surface(
+                color = BioDexColors.SurfaceElevated,
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.clickable(enabled = !uiState.almanacSyncingMore) {
+                    onSyncMoreNaturaLista()
+                },
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                ) {
+                    if (uiState.almanacSyncingMore) {
+                        CircularProgressIndicator(
+                            color = BioDexColors.Primary,
+                            modifier = Modifier.size(12.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.CloudDownload,
+                            contentDescription = null,
+                            tint = BioDexColors.Primary,
+                            modifier = Modifier.size(14.dp),
+                        )
+                    }
+                    Text(
+                        text = if (uiState.almanacSyncingMore) "Sincronizando..." else "+ NaturaLista",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = BioDexColors.Primary,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false,
+                    )
+                }
+            }
+        }
+
+        if (uiState.almanacLoading && entries.isNotEmpty()) {
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .clip(RoundedCornerShape(2.dp)),
+                color = BioDexColors.Primary,
+                trackColor = BioDexColors.SurfaceElevated,
+            )
+        }
+
         when {
-            uiState.almanacLoading && uiState.almanacEntries.isEmpty() -> {
+            uiState.almanacLoading && entries.isEmpty() -> {
                 CenteredLoader()
             }
 
@@ -453,15 +568,35 @@ private fun AlmanacCollectionBody(
             }
 
             entries.isEmpty() -> {
-                CenteredEmptyText("No se encontraron especies con ese filtro.")
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Text(
+                        text = "No se encontraron especies con ese filtro.",
+                        color = BioDexColors.TextSecondary,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedButton(
+                        onClick = onSyncMoreNaturaLista,
+                        enabled = !uiState.almanacSyncingMore,
+                    ) {
+                        Text("Sincronizar más de NaturaLista")
+                    }
+                }
             }
 
             else -> {
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f),
-                    contentPadding = PaddingValues(bottom = 16.dp),
+                    contentPadding = PaddingValues(bottom = 18.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     items(
@@ -472,6 +607,61 @@ private fun AlmanacCollectionBody(
                             item = item,
                             onClick = { onOpenDetail(item) },
                         )
+                    }
+
+                    item(key = "collection-footer") {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 6.dp, bottom = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            if (uiState.almanacLoadingMore) {
+                                CircularProgressIndicator(
+                                    color = BioDexColors.Primary,
+                                    modifier = Modifier.size(26.dp),
+                                    strokeWidth = 2.5.dp,
+                                )
+                            } else if (uiState.almanacEntries.size < uiState.almanacMatchedCount) {
+                                OutlinedButton(
+                                    onClick = onLoadMore,
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Text(
+                                        "Cargar más especies (${uiState.almanacMatchedCount - uiState.almanacEntries.size} restantes)",
+                                    )
+                                }
+                            }
+
+                            Button(
+                                onClick = onSyncMoreNaturaLista,
+                                enabled = !uiState.almanacSyncingMore,
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = BioDexColors.SurfaceElevated,
+                                    contentColor = BioDexColors.Primary,
+                                ),
+                            ) {
+                                if (uiState.almanacSyncingMore) {
+                                    CircularProgressIndicator(
+                                        color = BioDexColors.Primary,
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Sincronizando con NaturaLista...")
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.CloudDownload,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Sincronizar más de NaturaLista")
+                                }
+                            }
+                        }
                     }
                 }
             }

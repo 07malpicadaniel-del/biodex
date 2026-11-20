@@ -1,6 +1,8 @@
 //! Almanac (encyclopedia collection), NaturaLista media sync, and live species exploration service.
 
-use std::collections::{BTreeSet, HashMap};
+pub mod naturalista_sync;
+
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use biodex_core::crypto::GeoPoint;
 use biodex_core::mods::ModRegistry;
@@ -9,6 +11,9 @@ use biodex_core::taxonomy::{
     TaxonId, TaxonomyError, generate_card,
 };
 use chrono::{DateTime, Utc};
+pub use naturalista_sync::{
+    NaturaListaSyncOptions, NaturaListaSyncReport, sync_naturalista_clade_species,
+};
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Row};
 use thiserror::Error;
@@ -36,6 +41,14 @@ pub struct AlmanacFilter {
     /// When `true` (Dev Mode login), unlocks every cataloged species for full-collection preview.
     #[serde(default)]
     pub dev_mode: bool,
+    /// Optional discovery filter (`captured` or `missing`).
+    pub captured_filter: Option<String>,
+    /// Include NaturaLista-synced species alongside curated core Almanac species (`true` by default).
+    pub include_naturalista: Option<bool>,
+    /// Maximum number of entries returned in this page (returns all matching entries when omitted).
+    pub limit: Option<i64>,
+    /// Zero-based pagination offset (defaults to `0`).
+    pub offset: Option<i64>,
 }
 
 /// Complete encyclopedia collection entry enriched with NaturaLista imagery and capture badge.
@@ -108,7 +121,13 @@ pub struct AlmanacListResponse {
     pub total_species: usize,
     /// Number of species unlocked by captures (or all of them in `dev_mode`).
     pub discovered_count: usize,
-    /// Filtered list of Almanac/Collection entries.
+    /// Total number of entries matching the active search/category/status filters before pagination.
+    #[serde(default)]
+    pub matched_count: usize,
+    /// Per-clade species totals across the active base scope (`canids`, `felines`, `sharks`, etc.).
+    #[serde(default)]
+    pub category_counts: BTreeMap<String, usize>,
+    /// Filtered and paginated list of Almanac/Collection entries.
     pub entries: Vec<AlmanacItemDto>,
 }
 
@@ -325,12 +344,97 @@ pub async fn sync_almanac_media(
     Ok(updated)
 }
 
-/// Lists Almanac & captured collection species with discovery badges, photos, and NaturaLista URLs.
+/// Lists Almanac & captured collection species with discovery badges, photos, NaturaLista URLs,
+/// server-side filtering, clade counts, and optional SQL pagination (`limit` / `offset`).
 pub async fn list_almanac(
     pool: &PgPool,
     mods: &ModRegistry,
     filter: &AlmanacFilter,
 ) -> Result<AlmanacListResponse, AlmanacError> {
+    let include_naturalista = filter.include_naturalista.unwrap_or(true);
+    let user_id = filter.user_id.as_deref();
+
+    let stats_rows = sqlx::query(
+        r#"
+        SELECT
+            LOWER(sc.category) AS category,
+            COUNT(*)::BIGINT AS total_count,
+            COUNT(*) FILTER (WHERE COALESCE(cap.capture_count, 0) > 0)::BIGINT AS discovered_count
+        FROM species_catalog sc
+        LEFT JOIN LATERAL (
+            SELECT COUNT(*) AS capture_count
+            FROM captures c
+            WHERE c.taxon_source = sc.taxon_source
+              AND c.taxon_external_id = sc.taxon_external_id
+              AND c.zone_classification IN ('wild', 'sanctuary')
+              AND ($1::TEXT IS NULL OR c.user_id = $1)
+        ) cap ON TRUE
+        WHERE sc.taxonomic_rank = 'species'
+          AND (
+              sc.is_core_almanac = TRUE
+              OR ($2::BOOL AND sc.is_naturalista_synced = TRUE)
+              OR ($1::TEXT IS NOT NULL AND COALESCE(cap.capture_count, 0) > 0)
+          )
+        GROUP BY LOWER(sc.category)
+        "#,
+    )
+    .bind(user_id)
+    .bind(include_naturalista)
+    .fetch_all(pool)
+    .await?;
+
+    let mut category_counts: BTreeMap<String, usize> = BTreeMap::new();
+    let mut total_species = 0_usize;
+    let mut real_discovered_count = 0_usize;
+    for row in stats_rows {
+        let cat: String = row.try_get("category")?;
+        let cat_total = usize::try_from(row.try_get::<i64, _>("total_count")?.max(0)).unwrap_or(0);
+        let cat_disc =
+            usize::try_from(row.try_get::<i64, _>("discovered_count")?.max(0)).unwrap_or(0);
+        total_species = total_species.saturating_add(cat_total);
+        real_discovered_count = real_discovered_count.saturating_add(cat_disc);
+        category_counts.insert(cat, cat_total);
+    }
+    let discovered_count = if filter.dev_mode {
+        total_species
+    } else {
+        real_discovered_count
+    };
+
+    let search_pattern = filter
+        .q
+        .as_deref()
+        .map(str::trim)
+        .filter(|q| !q.is_empty())
+        .map(|q| format!("%{}%", escape_ilike_pattern(q)));
+    let category_filter = filter
+        .category
+        .as_deref()
+        .map(str::trim)
+        .filter(|c| !c.is_empty())
+        .map(str::to_lowercase);
+    let habitat_filter = filter
+        .habitat
+        .as_deref()
+        .map(str::trim)
+        .filter(|h| !h.is_empty())
+        .map(str::to_lowercase);
+    let captured_mode: Option<&str> = match filter
+        .captured_filter
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_lowercase)
+        .as_deref()
+    {
+        Some("captured") => (!filter.dev_mode).then_some("captured"),
+        Some("missing") => Some(if filter.dev_mode { "none" } else { "missing" }),
+        _ => None,
+    };
+
+    let limit_val = filter.limit.map(|l| l.clamp(1, 500));
+    let offset_val = filter.offset.unwrap_or(0).max(0);
+
     let rows = sqlx::query(
         r#"
         SELECT
@@ -357,7 +461,8 @@ pub async fn list_almanac(
             COALESCE(cap.has_wild, FALSE) AS has_wild,
             COALESCE(cap.has_sanctuary, FALSE) AS has_sanctuary,
             cap.last_captured_at_utc,
-            cap.last_zone_name
+            cap.last_zone_name,
+            COUNT(*) OVER()::BIGINT AS matched_total
         FROM species_catalog sc
         LEFT JOIN LATERAL (
             SELECT
@@ -383,77 +488,123 @@ pub async fn list_almanac(
               AND c.zone_classification IN ('wild', 'sanctuary')
               AND ($1::TEXT IS NULL OR c.user_id = $1)
         ) cap ON TRUE
-        WHERE sc.is_core_almanac = TRUE
-           OR ($1::TEXT IS NOT NULL AND COALESCE(cap.capture_count, 0) > 0)
-        ORDER BY sc.is_core_almanac DESC, sc.category ASC, COALESCE(sc.common_name, sc.scientific_name) ASC
+        WHERE sc.taxonomic_rank = 'species'
+          AND (
+              sc.is_core_almanac = TRUE
+              OR ($2::BOOL AND sc.is_naturalista_synced = TRUE)
+              OR ($1::TEXT IS NOT NULL AND COALESCE(cap.capture_count, 0) > 0)
+          )
+          AND ($3::TEXT IS NULL OR LOWER(sc.category) = $3)
+          AND ($4::TEXT IS NULL OR LOWER(sc.habitat) = $4)
+          AND (
+              $5::TEXT IS NULL
+              OR sc.scientific_name ILIKE $5 ESCAPE '\'
+              OR COALESCE(sc.common_name, '') ILIKE $5 ESCAPE '\'
+              OR sc.summary ILIKE $5 ESCAPE '\'
+          )
+          AND (
+              $6::TEXT IS NULL
+              OR ($6 = 'captured' AND COALESCE(cap.capture_count, 0) > 0)
+              OR ($6 = 'missing' AND COALESCE(cap.capture_count, 0) = 0)
+              OR ($6 = 'none' AND FALSE)
+          )
+        ORDER BY
+            sc.is_core_almanac DESC,
+            sc.naturalista_observations_count DESC NULLS LAST,
+            COALESCE(sc.common_name, sc.scientific_name) ASC
+        LIMIT $7
+        OFFSET $8
         "#,
     )
-    .bind(filter.user_id.as_deref())
+    .bind(user_id)
+    .bind(include_naturalista)
+    .bind(category_filter.as_deref())
+    .bind(habitat_filter.as_deref())
+    .bind(search_pattern.as_deref())
+    .bind(captured_mode)
+    .bind(limit_val)
+    .bind(offset_val)
     .fetch_all(pool)
     .await?;
 
-    let mut all_items = Vec::with_capacity(rows.len());
+    let matched_count = if let Some(first) = rows.first() {
+        usize::try_from(first.try_get::<i64, _>("matched_total")?.max(0)).unwrap_or(0)
+    } else if offset_val > 0 {
+        let count_row = sqlx::query(
+            r#"
+            SELECT COUNT(*)::BIGINT AS matched_total
+            FROM species_catalog sc
+            LEFT JOIN LATERAL (
+                SELECT COUNT(*) AS capture_count
+                FROM captures c
+                WHERE c.taxon_source = sc.taxon_source
+                  AND c.taxon_external_id = sc.taxon_external_id
+                  AND c.zone_classification IN ('wild', 'sanctuary')
+                  AND ($1::TEXT IS NULL OR c.user_id = $1)
+            ) cap ON TRUE
+            WHERE sc.taxonomic_rank = 'species'
+              AND (
+                  sc.is_core_almanac = TRUE
+                  OR ($2::BOOL AND sc.is_naturalista_synced = TRUE)
+                  OR ($1::TEXT IS NOT NULL AND COALESCE(cap.capture_count, 0) > 0)
+              )
+              AND ($3::TEXT IS NULL OR LOWER(sc.category) = $3)
+              AND ($4::TEXT IS NULL OR LOWER(sc.habitat) = $4)
+              AND (
+                  $5::TEXT IS NULL
+                  OR sc.scientific_name ILIKE $5 ESCAPE '\'
+                  OR COALESCE(sc.common_name, '') ILIKE $5 ESCAPE '\'
+                  OR sc.summary ILIKE $5 ESCAPE '\'
+              )
+              AND (
+                  $6::TEXT IS NULL
+                  OR ($6 = 'captured' AND COALESCE(cap.capture_count, 0) > 0)
+                  OR ($6 = 'missing' AND COALESCE(cap.capture_count, 0) = 0)
+                  OR ($6 = 'none' AND FALSE)
+              )
+            "#,
+        )
+        .bind(user_id)
+        .bind(include_naturalista)
+        .bind(category_filter.as_deref())
+        .bind(habitat_filter.as_deref())
+        .bind(search_pattern.as_deref())
+        .bind(captured_mode)
+        .fetch_one(pool)
+        .await?;
+        usize::try_from(count_row.try_get::<i64, _>("matched_total")?.max(0)).unwrap_or(0)
+    } else {
+        0
+    };
+
+    let mut entries = Vec::with_capacity(rows.len());
     for row in rows {
         if let Some(item) = map_almanac_row(&row, mods, filter.dev_mode)? {
-            all_items.push(item);
+            entries.push(item);
         }
     }
-
-    let total_species = all_items.len();
-    let discovered_count = all_items.iter().filter(|item| item.discovered).count();
-
-    let query_lower = filter
-        .q
-        .as_deref()
-        .map(str::trim)
-        .filter(|q| !q.is_empty())
-        .map(str::to_lowercase);
-    let category_filter = filter
-        .category
-        .as_deref()
-        .map(str::trim)
-        .filter(|c| !c.is_empty())
-        .map(str::to_lowercase);
-    let habitat_filter = filter
-        .habitat
-        .as_deref()
-        .map(str::trim)
-        .filter(|h| !h.is_empty())
-        .map(str::to_lowercase);
-
-    let entries = all_items
-        .into_iter()
-        .filter(|item| {
-            if let Some(cat) = &category_filter
-                && item.category.to_lowercase() != *cat
-            {
-                return false;
-            }
-            if let Some(hab) = &habitat_filter
-                && serialize_slug(&item.habitat) != *hab
-            {
-                return false;
-            }
-            if let Some(q) = &query_lower {
-                let in_scientific = item.scientific_name.to_lowercase().contains(q);
-                let in_common = item
-                    .common_name
-                    .as_deref()
-                    .is_some_and(|name| name.to_lowercase().contains(q));
-                let in_summary = item.summary.to_lowercase().contains(q);
-                if !in_scientific && !in_common && !in_summary {
-                    return false;
-                }
-            }
-            true
-        })
-        .collect();
 
     Ok(AlmanacListResponse {
         total_species,
         discovered_count,
+        matched_count,
+        category_counts,
         entries,
     })
+}
+
+fn escape_ilike_pattern(raw: &str) -> String {
+    let mut out = String::with_capacity(raw.len());
+    for ch in raw.chars() {
+        match ch {
+            '\\' | '%' | '_' => {
+                out.push('\\');
+                out.push(ch);
+            }
+            _ => out.push(ch),
+        }
+    }
+    out
 }
 
 /// Fetches a single Almanac/Collection entry by [`TaxonId`] with optional Dev Mode unlock.
