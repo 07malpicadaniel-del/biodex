@@ -257,7 +257,7 @@ fun CameraScannerScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Surface(
-                color = Color(0xCC0A1510),
+                color = Color(0xCC0B0B0D),
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth(),
             ) {
@@ -327,7 +327,7 @@ fun CameraScannerScreen(
 
             // Hardware integrity badges (ECDSA P-256 + IMU + Real GPS)
             Surface(
-                color = Color(0xBB0A1510),
+                color = Color(0xBB0B0B0D),
                 shape = RoundedCornerShape(12.dp),
             ) {
                 Row(
@@ -387,7 +387,7 @@ fun CameraScannerScreen(
             ) {
                 if (boundCamera?.cameraInfo?.hasFlashUnit() == true) {
                     Surface(
-                        color = Color(0xBB0A1510),
+                        color = Color(0xBB0B0B0D),
                         shape = CircleShape,
                         modifier = Modifier
                             .size(44.dp)
@@ -414,7 +414,7 @@ fun CameraScannerScreen(
                 }
 
                 Surface(
-                    color = Color(0xBB0A1510),
+                    color = Color(0xBB0B0B0D),
                     shape = CircleShape,
                     modifier = Modifier
                         .size(44.dp)
@@ -467,7 +467,7 @@ fun CameraScannerScreen(
         ) {
             if (uiState.isSubmitting) {
                 Surface(
-                    color = Color(0xE60A1510),
+                    color = Color(0xE60B0B0D),
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
@@ -492,10 +492,11 @@ fun CameraScannerScreen(
 
             uiState.errorMessage?.let { msg ->
                 Surface(
-                    color = Color(0xE67F1D1D),
+                    color = Color(0xEE27272A),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier
                         .fillMaxWidth()
+                        .border(1.dp, BioDexColors.TextSecondary, RoundedCornerShape(12.dp))
                         .clickable { onDismissError() },
                 ) {
                     Text(
@@ -512,7 +513,7 @@ fun CameraScannerScreen(
                     .size(78.dp)
                     .clip(CircleShape)
                     .border(3.dp, BioDexColors.Primary, CircleShape)
-                    .background(Color(0xCC13241C))
+                    .background(Color(0xCC151518))
                     .clickable(enabled = hasCameraPermission && !uiState.isSubmitting && imageCapture != null) {
                         val captureUseCase = imageCapture ?: return@clickable
                         captureUseCase.takePicture(

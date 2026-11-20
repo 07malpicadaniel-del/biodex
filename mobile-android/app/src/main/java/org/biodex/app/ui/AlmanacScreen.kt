@@ -297,7 +297,7 @@ fun AlmanacScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color(0x9908120E)),
+                    .background(Color(0x990B0B0D)),
                 contentAlignment = Alignment.Center,
             ) {
                 Surface(
@@ -1387,7 +1387,7 @@ private fun SpeciesThumbnail(
                     .align(Alignment.BottomEnd)
                     .padding(4.dp)
                     .clip(RoundedCornerShape(6.dp))
-                    .background(Color(0xBB0B1410))
+                    .background(Color(0xBB0B0B0D))
                     .padding(3.dp),
             ) {
                 Icon(
@@ -1565,9 +1565,11 @@ private fun CenteredLoader() {
 @Composable
 private fun ErrorBanner(message: String) {
     Surface(
-        color = Color(0xCC7F1D1D),
+        color = Color(0xEE27272A),
         shape = RoundedCornerShape(14.dp),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, BioDexColors.TextSecondary, RoundedCornerShape(14.dp)),
     ) {
         Text(
             text = message,
@@ -1596,9 +1598,9 @@ private fun CenteredEmptyText(text: String) {
 }
 
 private fun iucnAccentColor(status: String): Color = when (status.uppercase()) {
-    "CR" -> Color(0xFFFF6B6B)
-    "EN" -> Color(0xFFF59E0B)
-    "VU" -> Color(0xFF60A5FA)
-    "NT" -> Color(0xFF34D399)
+    "CR" -> Color(0xFFFFFFFF)
+    "EN" -> Color(0xFFE4E4E7)
+    "VU" -> Color(0xFFD4D4D8)
+    "NT" -> Color(0xFFB4B4BC)
     else -> BioDexColors.TextSecondary
 }

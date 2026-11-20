@@ -6,22 +6,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 object BioDexColors {
-    val Background = Color(0xFF0A1510)
-    val Surface = Color(0xFF13241C)
-    val SurfaceElevated = Color(0xFF1C3529)
-    val Primary = Color(0xFF34D399)
-    val OnPrimary = Color(0xFF052014)
-    val TextPrimary = Color(0xFFF1F5F9)
-    val TextSecondary = Color(0xFF94A3B8)
-    val Warning = Color(0xFFF59E0B)
-    val Danger = Color(0xFFEF4444)
+    val Background = Color(0xFF0B0B0D)
+    val Surface = Color(0xFF151518)
+    val SurfaceElevated = Color(0xFF232328)
+    val Primary = Color(0xFFF4F4F5)
+    val OnPrimary = Color(0xFF0B0B0D)
+    val TextPrimary = Color(0xFFFAFAFA)
+    val TextSecondary = Color(0xFFA1A1AA)
+    val Warning = Color(0xFFD4D4D8)
+    val Danger = Color(0xFF71717A)
 
     fun rarityColor(rarity: String): Color = when (rarity.lowercase()) {
-        "uncommon" -> Color(0xFF34D399)
-        "rare" -> Color(0xFF38BDF8)
-        "epic" -> Color(0xFFA78BFA)
-        "mythic" -> Color(0xFFF59E0B)
-        else -> Color(0xFF94A3B8)
+        "uncommon" -> Color(0xFFB4B4BC)
+        "rare" -> Color(0xFFD4D4D8)
+        "epic" -> Color(0xFFE4E4E7)
+        "mythic" -> Color(0xFFFFFFFF)
+        else -> Color(0xFF8E8E98)
     }
 }
 
