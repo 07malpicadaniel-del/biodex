@@ -1,0 +1,134 @@
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 118552 }
+scientific_name = "Felis catus"
+common_name = "Gato Doméstico"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 4200
+diet = "carnivore"
+habitat = "terrestrial"
+defenses = ["camouflage", "speed"]
+iucn_status = "LC"
+category = "felines"
+summary = "Pequeño felino ágil de visión crepuscular excelente, reflejos rápidos y sigilo notable al acechar."
+region_hint = "Entornos domésticos y urbanos"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 41970 }
+scientific_name = "Panthera onca"
+common_name = "Jaguar"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 85000
+diet = "carnivore"
+habitat = "terrestrial"
+defenses = ["camouflage", "speed"]
+iucn_status = "NT"
+category = "felines"
+summary = "El mayor felino de América; posee la mordida más potente entre los grandes félidos y es excelente nadador."
+region_hint = "Selvas tropicales, manglares y humedales de México"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 42007 }
+scientific_name = "Puma concolor"
+common_name = "Puma"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 62000
+diet = "carnivore"
+habitat = "terrestrial"
+defenses = ["speed", "camouflage"]
+iucn_status = "LC"
+category = "felines"
+summary = "Félido solitario de gran salto capaz de habitar desde montañas boscosas hasta selvas y cañones rocosos."
+region_hint = "Sierras, bosques y cañones de América"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 41997 }
+scientific_name = "Leopardus pardalis"
+common_name = "Ocelote"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 11500
+diet = "carnivore"
+habitat = "terrestrial"
+defenses = ["camouflage", "speed"]
+iucn_status = "LC"
+category = "felines"
+summary = "Felino neotropical nocturno cubierto de ocelos oscuros que patrulla sotobosques y márgenes de ríos."
+region_hint = "Selvas tropicales, bosques de niebla y manglares"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 41976 }
+scientific_name = "Lynx rufus"
+common_name = "Lince Rojo"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 9500
+diet = "carnivore"
+habitat = "terrestrial"
+defenses = ["camouflage", "speed"]
+iucn_status = "LC"
+category = "felines"
+summary = "Felino mediano de cola corta y patillas prominentes que acecha liebres, aves y roedores entre matorrales."
+region_hint = "Bosques templados, matorrales y zonas semiáridas"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 41967 }
+scientific_name = "Panthera tigris"
+common_name = "Tigre"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 180000
+diet = "carnivore"
+habitat = "terrestrial"
+defenses = ["camouflage", "speed"]
+iucn_status = "EN"
+category = "felines"
+summary = "El felino más grande del planeta; sus rayas verticales rompen su silueta entre cañaverales y bosques densos."
+region_hint = "Bosques tropicales, manglares y taigas asiáticas"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 41964 }
+scientific_name = "Panthera leo"
+common_name = "León"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 175000
+diet = "carnivore"
+habitat = "terrestrial"
+defenses = ["speed"]
+iucn_status = "VU"
+category = "felines"
+summary = "Único gran felino que vive en grupos sociales permanentes llamados manadas, dominando sabanas abiertas."
+region_hint = "Sabanas y praderas africanas"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 41955 }
+scientific_name = "Acinonyx jubatus"
+common_name = "Guepardo"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 50000
+diet = "carnivore"
+habitat = "terrestrial"
+defenses = ["speed"]
+iucn_status = "VU"
+category = "felines"
+summary = "El mamífero terrestre más veloz; su columna flexible y garras semirretráctiles impulsan carreras de más de 100 km/h."
+region_hint = "Sabanas abiertas y semidesiertos"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 74831 }
+scientific_name = "Panthera uncia"
+common_name = "Leopardo de las Nieves"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 45000
+diet = "carnivore"
+habitat = "terrestrial"
+defenses = ["camouflage"]
+iucn_status = "VU"
+category = "felines"
+summary = "Esquivo felino de alta montaña con larga cola equilibradora y pelaje espeso adaptado a riscos nevados."
+region_hint = "Cordilleras rocosas de Asia Central"

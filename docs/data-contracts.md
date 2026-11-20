@@ -44,7 +44,7 @@ Este documento registra los contratos de datos aprobados por el Arquitecto de So
 - **Formato de archivos:**
   - `mod.toml`: `schema_version` (`1`), `id`, `name`, `version`, `authors`, `layer`, `priority`, `description`, `species_paths`, `almanac_paths`.
   - `species/*.toml`: `scientific_name`, `display_name_override`, `art_override`, `moves_override`.
-  - `almanac/*.toml`: listado `[[entries]]` con `BiologicalTraits` aplanado + `category` (`birds | mammals | reptiles_amphibians | insects_arachnids | aquatic`), `summary` y `region_hint`.
+  - `almanac/*.toml`: listado `[[entries]]` con `BiologicalTraits` aplanado + `category` (`canids | felines | primates | mammals | birds | reptiles_amphibians | sharks | invertebrates | insects_arachnids | aquatic`), `summary` y `region_hint` (92 especies curadas en `base-pack`).
 
 ---
 

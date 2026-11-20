@@ -26,7 +26,8 @@ use crate::vision::{
 pub struct AlmanacFilter {
     /// Case-insensitive substring search against common name, scientific name, or summary.
     pub q: Option<String>,
-    /// Exact category filter (`birds`, `mammals`, `reptiles_amphibians`, `insects_arachnids`, `aquatic`).
+    /// Exact category filter (`canids`, `felines`, `primates`, `mammals`, `birds`,
+    /// `reptiles_amphibians`, `sharks`, `invertebrates`, `insects_arachnids`, `aquatic`).
     pub category: Option<String>,
     /// Exact habitat filter (`terrestrial`, `aerial`, `freshwater`, `marine`, `abyssal`).
     pub habitat: Option<String>,
@@ -383,13 +384,11 @@ pub async fn list_almanac(
               AND ($1::TEXT IS NULL OR c.user_id = $1)
         ) cap ON TRUE
         WHERE sc.is_core_almanac = TRUE
-           OR $2 = TRUE
            OR ($1::TEXT IS NOT NULL AND COALESCE(cap.capture_count, 0) > 0)
         ORDER BY sc.is_core_almanac DESC, sc.category ASC, COALESCE(sc.common_name, sc.scientific_name) ASC
         "#,
     )
     .bind(filter.user_id.as_deref())
-    .bind(filter.dev_mode)
     .fetch_all(pool)
     .await?;
 

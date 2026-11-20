@@ -402,7 +402,10 @@ private fun AlmanacCollectionBody(
             }
         }
 
-        // Taxonomic category filter row
+        // Taxonomic category filter row with counts
+        val categoryCounts = remember(uiState.almanacEntries) {
+            uiState.almanacEntries.groupingBy { it.category }.eachCount()
+        }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -410,10 +413,26 @@ private fun AlmanacCollectionBody(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             AlmanacCategoryFilter.entries.forEach { cat ->
+                val count = if (cat.apiKey == null) {
+                    uiState.almanacEntries.size
+                } else {
+                    categoryCounts[cat.apiKey] ?: 0
+                }
+                val chipText = if (uiState.almanacEntries.isNotEmpty()) {
+                    "${cat.label} ($count)"
+                } else {
+                    cat.label
+                }
                 FilterChip(
                     selected = uiState.almanacCategoryFilter == cat,
                     onClick = { onSelectCategory(cat) },
-                    label = { Text(cat.label) },
+                    label = {
+                        Text(
+                            text = chipText,
+                            maxLines = 1,
+                            softWrap = false,
+                        )
+                    },
                     colors = FilterChipDefaults.filterChipColors(
                         containerColor = BioDexColors.Surface,
                         labelColor = BioDexColors.TextSecondary,
@@ -1011,6 +1030,7 @@ fun AlmanacDetailScreen(
                         modifier = Modifier.padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
+                        BioMetaRow("Grupo", BioDexFormatters.categoryLabelEs(item.category))
                         BioMetaRow("Taxonomía", "${item.phylum} · ${item.taxonomicClass}")
                         BioMetaRow("Masa promedio", BioDexFormatters.formatMass(item.averageMassGrams))
                         BioMetaRow("Dieta", BioDexFormatters.dietLabelEs(item.diet))

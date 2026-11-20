@@ -1,34 +1,4 @@
 [[entries]]
-taxon_id = { source = "i_naturalist", id = 47144 }
-scientific_name = "Canis familiaris"
-common_name = "Perro Doméstico"
-phylum = "Chordata"
-taxonomic_class = "Mammalia"
-average_mass_grams = 18000
-diet = "omnivore"
-habitat = "terrestrial"
-defenses = ["speed"]
-iucn_status = "LC"
-category = "mammals"
-summary = "Cánido social con agudo sentido del olfato y oído, compañero histórico del ser humano en todo el planeta."
-region_hint = "Entornos domésticos y parques"
-
-[[entries]]
-taxon_id = { source = "i_naturalist", id = 118552 }
-scientific_name = "Felis catus"
-common_name = "Gato Doméstico"
-phylum = "Chordata"
-taxonomic_class = "Mammalia"
-average_mass_grams = 4200
-diet = "carnivore"
-habitat = "terrestrial"
-defenses = ["camouflage", "speed"]
-iucn_status = "LC"
-category = "mammals"
-summary = "Pequeño felino ágil de visión crepuscular excelente, reflejos rápidos y sigilo notable al acechar."
-region_hint = "Entornos domésticos y urbanos"
-
-[[entries]]
 taxon_id = { source = "i_naturalist", id = 46009 }
 scientific_name = "Sciurus aureogaster"
 common_name = "Ardilla Gris Mexicana"
@@ -74,16 +44,121 @@ summary = "Marsupial nocturno de cola prensil que controla plagas de insectos y 
 region_hint = "Bosques, barrancas y zonas periurbanas"
 
 [[entries]]
-taxon_id = { source = "i_naturalist", id = 42069 }
-scientific_name = "Vulpes vulpes"
-common_name = "Zorro Rojo"
+taxon_id = { source = "i_naturalist", id = 41673 }
+scientific_name = "Nasua narica"
+common_name = "Coatí de Nariz Blanca"
 phylum = "Chordata"
 taxonomic_class = "Mammalia"
-average_mass_grams = 6500
+average_mass_grams = 4500
 diet = "omnivore"
+habitat = "terrestrial"
+defenses = ["speed"]
+iucn_status = "LC"
+category = "mammals"
+summary = "Prociónido diurno que forrajea en bandas de hembras y crías manteniendo su larga cola erguida entre selvas y bosques."
+region_hint = "Selvas tropicales, bosques de niebla y parques de Veracruz"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 47105 }
+scientific_name = "Tamandua mexicana"
+common_name = "Tamandúa Norteño"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 4200
+diet = "carnivore"
+habitat = "terrestrial"
+defenses = ["camouflage"]
+iucn_status = "LC"
+category = "mammals"
+summary = "Oso hormiguero arborícola con chaleco oscuro distintivo y lengua pegajosa que alcanza 40 cm para extraer termitas."
+region_hint = "Selvas húmedas, secas y manglares neotropicales"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 43355 }
+scientific_name = "Tapirus bairdii"
+common_name = "Tapir Centroamericano"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 240000
+diet = "herbivore"
+habitat = "terrestrial"
+defenses = ["camouflage"]
+iucn_status = "EN"
+category = "mammals"
+summary = "El mayor mamífero terrestre silvestre del neotrópico mesoamericano; dispersa semillas clave a través de humedales y selvas."
+region_hint = "Selvas tropicales húmedas y ríos de Chiapas y Oaxaca"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 42223 }
+scientific_name = "Odocoileus virginianus"
+common_name = "Venado Cola Blanca"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 65000
+diet = "herbivore"
 habitat = "terrestrial"
 defenses = ["speed", "camouflage"]
 iucn_status = "LC"
 category = "mammals"
-summary = "Cánido solitario y astuto que combina gran audición y agilidad para prosperar en bosques, praderas y linderos."
-region_hint = "Bosques, praderas y zonas rurales"
+summary = "Cérvido esbelto que levanta el envés blanco de su cola como señal de alerta antes de dar largos saltos entre claros."
+region_hint = "Bosques de pino-encino, matorrales y selvas"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 74442 }
+scientific_name = "Hydrochoerus hydrochaeris"
+common_name = "Capibara"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 52000
+diet = "herbivore"
+habitat = "freshwater"
+defenses = ["camouflage"]
+iucn_status = "LC"
+category = "mammals"
+summary = "El roedor viviente de mayor tamaño en el mundo; excelente buceador social que descansa junto a ríos y lagunas."
+region_hint = "Humedales, esteros y riberas sudamericanas"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 41638 }
+scientific_name = "Ursus americanus"
+common_name = "Oso Negro Americano"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 130000
+diet = "omnivore"
+habitat = "terrestrial"
+defenses = ["speed"]
+iucn_status = "LC"
+category = "mammals"
+summary = "Úrsido ágil capaz de trepar árboles y recorrer largas distancias en busca de bayas, bellotas e insectos."
+region_hint = "Sierras boscosas y cañones del norte de México y Norteamérica"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 43694 }
+scientific_name = "Loxodonta africana"
+common_name = "Elefante Africano de Sabana"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 5500000
+diet = "herbivore"
+habitat = "terrestrial"
+defenses = ["shell_armor"]
+iucn_status = "EN"
+category = "mammals"
+summary = "El animal terrestre más grande del planeta; su trompa sensible reúne más de 40,000 músculos y guía manadas matriarcales."
+region_hint = "Sabanas, bosques abiertos y reservas africanas"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 46316 }
+scientific_name = "Trichechus manatus"
+common_name = "Manatí del Caribe"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 480000
+diet = "herbivore"
+habitat = "freshwater"
+defenses = ["camouflage"]
+iucn_status = "VU"
+category = "mammals"
+summary = "Sirénido apacible conocido como vaca marina; pasta vegetación sumergida en lagunas costeras y ríos del Golfo."
+region_hint = "Lagunas costeras, sistemas estuarinos de Alvarado y Caribe"

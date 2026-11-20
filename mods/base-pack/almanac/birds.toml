@@ -87,3 +87,63 @@ iucn_status = "LC"
 category = "birds"
 summary = "Ave marina costera que pesca lanzándose en picada sobre cardúmenes y capturándolos con su bolsa gular."
 region_hint = "Costas, muelles y estuarios"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 18796 }
+scientific_name = "Ramphastos sulfuratus"
+common_name = "Tucán Pico Canoa"
+phylum = "Chordata"
+taxonomic_class = "Aves"
+average_mass_grams = 400
+diet = "omnivore"
+habitat = "aerial"
+defenses = ["camouflage"]
+iucn_status = "NT"
+category = "birds"
+summary = "Ave emblemática de selvas mexicanas con enorme pico ligero y multicolor que funciona como radiador térmico y recolector de frutos."
+region_hint = "Selvas húmedas y cafetales de Veracruz y Chiapas"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 19022 }
+scientific_name = "Ara macao"
+common_name = "Guacamaya Roja"
+phylum = "Chordata"
+taxonomic_class = "Aves"
+average_mass_grams = 1050
+diet = "herbivore"
+habitat = "aerial"
+defenses = ["speed"]
+iucn_status = "LC"
+category = "birds"
+summary = "Gran psitácido escarlata de vuelo social en pareja; consume arcilla en barrancas para neutralizar toxinas de semillas."
+region_hint = "Selvas altas tropicales y cañones fluviales"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 5074 }
+scientific_name = "Aquila chrysaetos"
+common_name = "Águila Real"
+phylum = "Chordata"
+taxonomic_class = "Aves"
+average_mass_grams = 4500
+diet = "carnivore"
+habitat = "aerial"
+defenses = ["speed"]
+iucn_status = "LC"
+category = "birds"
+summary = "Rapaz nacional de México de vista extraordinaria que se lanza en picada a gran velocidad sobre liebres y presas de montaña."
+region_hint = "Sierras, cañones y estepas del altiplano mexicano"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 20856 }
+scientific_name = "Pharomachrus mocinno"
+common_name = "Quetzal Mesoamericano"
+phylum = "Chordata"
+taxonomic_class = "Aves"
+average_mass_grams = 210
+diet = "omnivore"
+habitat = "aerial"
+defenses = ["camouflage"]
+iucn_status = "NT"
+category = "birds"
+summary = "Trogón sagrado de plumaje verde esmeralda iridiscente y coberteras caudales de hasta un metro en bosques de niebla."
+region_hint = "Bosques mesófilos de montaña en Mesoamérica"

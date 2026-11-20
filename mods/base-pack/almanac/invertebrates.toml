@@ -1,0 +1,179 @@
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 49315 }
+scientific_name = "Octopus vulgaris"
+common_name = "Pulpo Común"
+phylum = "Mollusca"
+taxonomic_class = "Cephalopoda"
+average_mass_grams = 3000
+diet = "carnivore"
+habitat = "marine"
+defenses = ["ink", "camouflage"]
+iucn_status = "LC"
+category = "invertebrates"
+summary = "Cefalópodo de extraordinaria inteligencia capaz de cambiar color y textura al instante y escapar tras una nube de tinta."
+region_hint = "Arrecifes rocosos y fondos costeros"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 123962 }
+scientific_name = "Dosidicus gigas"
+common_name = "Calamar de Humboldt"
+phylum = "Mollusca"
+taxonomic_class = "Cephalopoda"
+average_mass_grams = 35000
+diet = "carnivore"
+habitat = "abyssal"
+defenses = ["ink", "speed", "camouflage"]
+iucn_status = "UNKNOWN"
+category = "invertebrates"
+summary = "Gran calamar pelágico del Pacífico oriental que coordina cacerías nocturnas emitiendo destellos bioluminiscentes rápidos."
+region_hint = "Aguas profundas y corrientes del Pacífico oriental"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 151429 }
+scientific_name = "Sepia officinalis"
+common_name = "Sepia Común"
+phylum = "Mollusca"
+taxonomic_class = "Cephalopoda"
+average_mass_grams = 2000
+diet = "carnivore"
+habitat = "marine"
+defenses = ["camouflage", "ink"]
+iucn_status = "LC"
+category = "invertebrates"
+summary = "Maestra del mimetismo marino gracias a millones de cromatóforos y papilas cutáneas que imitan rocas y algas en milisegundos."
+region_hint = "Fondos arenosos y praderas marinas costeras"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 123467 }
+scientific_name = "Nautilus pompilius"
+common_name = "Nautilo Común"
+phylum = "Mollusca"
+taxonomic_class = "Cephalopoda"
+average_mass_grams = 1200
+diet = "carnivore"
+habitat = "abyssal"
+defenses = ["shell_armor"]
+iucn_status = "VU"
+category = "invertebrates"
+summary = "Fósil viviente con concha espiralada dividida en cámaras de flotación con gas para ascender y descender por taludes coralinos."
+region_hint = "Taludes arrecifales profundos del Indo-Pacífico"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 54952 }
+scientific_name = "Cardisoma guanhumi"
+common_name = "Cangrejo Azul de Tierra"
+phylum = "Arthropoda"
+taxonomic_class = "Malacostraca"
+average_mass_grams = 450
+diet = "omnivore"
+habitat = "terrestrial"
+defenses = ["shell_armor"]
+iucn_status = "UNKNOWN"
+category = "invertebrates"
+summary = "Crustáceo semi-terrestre de caparazón azulado y pinza asimétrica que excava madrigueras en manglares y migra al mar a desovar."
+region_hint = "Manglares, estuarios y costas de Veracruz y el Golfo"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 53875 }
+scientific_name = "Ocypode quadrata"
+common_name = "Cangrejo Fantasma del Atlántico"
+phylum = "Arthropoda"
+taxonomic_class = "Malacostraca"
+average_mass_grams = 65
+diet = "omnivore"
+habitat = "terrestrial"
+defenses = ["speed", "camouflage"]
+iucn_status = "UNKNOWN"
+category = "invertebrates"
+summary = "Cangrejo corredor color arena que patrulla playas de noche y desaparece a gran velocidad en profundas galerías arenosas."
+region_hint = "Playas arenosas del Golfo de México y Atlántico"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 47299 }
+scientific_name = "Panulirus argus"
+common_name = "Langosta Espinosa del Caribe"
+phylum = "Arthropoda"
+taxonomic_class = "Malacostraca"
+average_mass_grams = 2500
+diet = "omnivore"
+habitat = "marine"
+defenses = ["shell_armor", "spines"]
+iucn_status = "UNKNOWN"
+category = "invertebrates"
+summary = "Crustáceo nocturno de largas antenas defensivas capaz de realizar migraciones masivas en fila india por fondos marinos."
+region_hint = "Arrecifes coralinos y praderas del Caribe y Golfo"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 194691 }
+scientific_name = "Echinometra lucunter"
+common_name = "Erizo de las Rocas"
+phylum = "Echinodermata"
+taxonomic_class = "Echinoidea"
+average_mass_grams = 120
+diet = "herbivore"
+habitat = "marine"
+defenses = ["spines"]
+iucn_status = "UNKNOWN"
+category = "invertebrates"
+summary = "Equinodermo cubierto de púas calcáreas que se aloja en oquedades rocosas intermareales alimentándose de algas."
+region_hint = "Escolleras y arrecifes rocosos someros"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 48328 }
+scientific_name = "Aurelia aurita"
+common_name = "Medusa Luna"
+phylum = "Cnidaria"
+taxonomic_class = "Scyphozoa"
+average_mass_grams = 200
+diet = "carnivore"
+habitat = "marine"
+defenses = ["venom"]
+iucn_status = "UNKNOWN"
+category = "invertebrates"
+summary = "Medusa translúcida reconocible por sus cuatro gónadas en forma de trébol y suaves pulsaciones rítmicas de natación."
+region_hint = "Bahías, aguas costeras y mares templados o tropicales"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 1099504 }
+scientific_name = "Aliger gigas"
+common_name = "Caracol Pala"
+phylum = "Mollusca"
+taxonomic_class = "Gastropoda"
+average_mass_grams = 2200
+diet = "herbivore"
+habitat = "marine"
+defenses = ["shell_armor"]
+iucn_status = "NT"
+category = "invertebrates"
+summary = "Gran gasterópodo marino de interior rosado nácar; cumple un rol clave limpiando algas de praderas de pasto marino."
+region_hint = "Arrecifes y pastos marinos del Caribe"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 264094 }
+scientific_name = "Brachypelma hamorii"
+common_name = "Tarántula Mexicana de Rodillas Rojas"
+phylum = "Arthropoda"
+taxonomic_class = "Arachnida"
+average_mass_grams = 30
+diet = "carnivore"
+habitat = "terrestrial"
+defenses = ["spines", "venom"]
+iucn_status = "VU"
+category = "invertebrates"
+summary = "Emblemática tarántula terrestre mexicana de vida longeva que utiliza pelos urticantes abdominales ante amenazas."
+region_hint = "Selvas bajas caducifolias y laderas rocosas de México"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 47381 }
+scientific_name = "Latrodectus mactans"
+common_name = "Viuda Negra"
+phylum = "Arthropoda"
+taxonomic_class = "Arachnida"
+average_mass_grams = 2
+diet = "carnivore"
+habitat = "terrestrial"
+defenses = ["venom"]
+iucn_status = "UNKNOWN"
+category = "invertebrates"
+summary = "Arácnido tímido distinguido por la marca roja en forma de reloj de arena ventral y potente veneno neurotóxico."
+region_hint = "Grietas, leñeros y matorrales secos"

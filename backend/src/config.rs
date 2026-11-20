@@ -12,7 +12,7 @@ pub const DEFAULT_MAX_MOIRE_SCORE: f32 = 0.35;
 pub const DEFAULT_VISION_MIN_CONFIDENCE: f32 = 0.35;
 
 /// Default HTTP bind address (listens on all interfaces for local USB/LAN device testing).
-pub const DEFAULT_BIND_ADDR: &str = "0.0.0.0:3000";
+pub const DEFAULT_BIND_ADDR: &str = "0.0.0.0:3030";
 
 /// Default iNaturalist API v1 base URL.
 pub const DEFAULT_INATURALIST_TAXA_URL: &str = "https://api.inaturalist.org/v1";

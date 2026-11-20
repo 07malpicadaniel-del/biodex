@@ -48,7 +48,7 @@ class BioDexApiClient(
             customUrl = customRef.get(),
             primaryUrl = primaryRef.get(),
             fallbackUrl = fallbackRef.get(),
-        ).firstOrNull() ?: "http://127.0.0.1:3000",
+        ).firstOrNull() ?: "http://127.0.0.1:3030",
     )
 
     fun activeBaseUrl(): String = activeBaseUrlRef.get()
@@ -81,7 +81,7 @@ class BioDexApiClient(
                 }
                 lastFailure = attempt.exceptionOrNull()
             }
-            throw (lastFailure ?: IOException("No se encontró ningún servidor BioDex accesible en el puerto 3000"))
+            throw (lastFailure ?: IOException("No se encontró ningún servidor BioDex accesible en el puerto 3030"))
         }
     }
 

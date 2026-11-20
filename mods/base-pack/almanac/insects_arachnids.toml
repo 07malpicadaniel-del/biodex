@@ -72,3 +72,63 @@ iucn_status = "LC"
 category = "insects_arachnids"
 summary = "Cazador aéreo veloz con cuatro alas independientes y visión casi panorámica; patrulla cuerpos de agua dulce."
 region_hint = "Orillas de lagos, estanques y jardines"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 1065735 }
+scientific_name = "Dynastes hercules"
+common_name = "Escarabajo Hércules"
+phylum = "Arthropoda"
+taxonomic_class = "Insecta"
+average_mass_grams = 80
+diet = "herbivore"
+habitat = "terrestrial"
+defenses = ["shell_armor", "spines"]
+iucn_status = "UNKNOWN"
+category = "insects_arachnids"
+summary = "Uno de los coleópteros más grandes y fuertes del mundo; los machos emplean enormes cuernos torácicos en combates territoriales."
+region_hint = "Selvas húmedas y bosques mesófilos neotropicales"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 300315 }
+scientific_name = "Atta mexicana"
+common_name = "Hormiga Chicatana"
+phylum = "Arthropoda"
+taxonomic_class = "Insecta"
+average_mass_grams = 1
+diet = "herbivore"
+habitat = "terrestrial"
+defenses = ["spines"]
+iucn_status = "UNKNOWN"
+category = "insects_arachnids"
+summary = "Hormiga cortadora de hojas que cultiva hongos simbióticos en vastos hormigueros subterráneos de México."
+region_hint = "Bosques, selvas y jardines de México"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 68756 }
+scientific_name = "Morpho menelaus"
+common_name = "Mariposa Morfo Azul"
+phylum = "Arthropoda"
+taxonomic_class = "Insecta"
+average_mass_grams = 1
+diet = "herbivore"
+habitat = "aerial"
+defenses = ["camouflage"]
+iucn_status = "UNKNOWN"
+category = "insects_arachnids"
+summary = "Mariposa neotropical cuyas microescamas alares refractan la luz creando un azul metálico brillante al volar."
+region_hint = "Claros y dosel de selvas húmedas tropicales"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 129350 }
+scientific_name = "Photinus pyralis"
+common_name = "Luciérnaga Común"
+phylum = "Arthropoda"
+taxonomic_class = "Insecta"
+average_mass_grams = 1
+diet = "carnivore"
+habitat = "aerial"
+defenses = ["venom"]
+iucn_status = "LC"
+category = "insects_arachnids"
+summary = "Coleóptero crepuscular que emite destellos bioluminiscentes amarillo-verdosos mediante luciferina para cortejo nocturno."
+region_hint = "Praderas húmedas y linderos de bosques en verano"

@@ -474,7 +474,7 @@ async fn almanac_endpoint_lists_24_basic_species_filters_and_tracks_discovery() 
     let mods_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../mods");
     let mods = Arc::new(load_mods_from_dir(&mods_dir).unwrap());
     let synced = sync_almanac_catalog(&pool, &mods).await.unwrap();
-    assert_eq!(synced, 24);
+    assert_eq!(synced, 92);
 
     let test_user = format!("almanac-user-{}", Uuid::new_v4());
     let app = router(AppState {
@@ -490,7 +490,7 @@ async fn almanac_endpoint_lists_24_basic_species_filters_and_tracks_discovery() 
         enable_live_range_fallback: false,
     });
 
-    // 1. Fresh user sees all 24 entries with 0 discovered.
+    // 1. Fresh user sees all 92 entries with 0 discovered.
     let list_resp = app
         .clone()
         .oneshot(
@@ -506,11 +506,11 @@ async fn almanac_endpoint_lists_24_basic_species_filters_and_tracks_discovery() 
         .await
         .unwrap();
     let list: AlmanacListResponse = serde_json::from_slice(&list_bytes).unwrap();
-    assert_eq!(list.total_species, 24);
+    assert_eq!(list.total_species, 92);
     assert_eq!(list.discovered_count, 0);
-    assert_eq!(list.entries.len(), 24);
+    assert_eq!(list.entries.len(), 92);
 
-    // 2. Category + text search filter works cleanly.
+    // 2. Category + text search filter works cleanly across both core & new clades.
     let filtered_resp = app
         .clone()
         .oneshot(
@@ -528,10 +528,29 @@ async fn almanac_endpoint_lists_24_basic_species_filters_and_tracks_discovery() 
         .await
         .unwrap();
     let filtered: AlmanacListResponse = serde_json::from_slice(&filtered_bytes).unwrap();
-    assert_eq!(filtered.total_species, 24);
+    assert_eq!(filtered.total_species, 92);
     assert_eq!(filtered.entries.len(), 1);
     assert_eq!(filtered.entries[0].scientific_name, "Ambystoma mexicanum");
     assert!(!filtered.entries[0].discovered);
+
+    let sharks_resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!(
+                    "/api/v1/almanac?category=sharks&user_id={test_user}"
+                ))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(sharks_resp.status(), StatusCode::OK);
+    let sharks_bytes = axum::body::to_bytes(sharks_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let sharks: AlmanacListResponse = serde_json::from_slice(&sharks_bytes).unwrap();
+    assert_eq!(sharks.entries.len(), 8);
 
     // 3. Record a verified wild capture for this user and confirm discovery badge flips to true.
     sqlx::query(
@@ -598,8 +617,8 @@ async fn subspecies_rollup_enriches_new_species_and_respects_geozones() {
     let mods_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../mods");
     let mods = Arc::new(load_mods_from_dir(&mods_dir).unwrap());
 
-    // Ensure Panthera tigris (iNat 41967) starts uncached so we test full offline enrichment.
-    sqlx::query("DELETE FROM species_catalog WHERE taxon_source = 'i_naturalist' AND taxon_external_id = 41967")
+    // Ensure Panthera pardus (iNat 41963, not in base-pack) starts uncached so we test full offline enrichment.
+    sqlx::query("DELETE FROM species_catalog WHERE taxon_source = 'i_naturalist' AND taxon_external_id = 41963")
         .execute(&pool)
         .await
         .unwrap();
@@ -639,13 +658,13 @@ async fn subspecies_rollup_enriches_new_species_and_respects_geozones() {
     // Local loopback HTTP mock for iNaturalist /taxa, GBIF /species/match + IUCN, and Wikidata.
     let mock_api = Router::new()
         .route(
-            "/inat/taxa/41967",
+            "/inat/taxa/41963",
             get(|| async {
                 axum::Json(json!({
                     "results": [{
-                        "id": 41967,
-                        "name": "Panthera tigris",
-                        "preferred_common_name": "Tigre",
+                        "id": 41963,
+                        "name": "Panthera pardus",
+                        "preferred_common_name": "Leopardo",
                         "iconic_taxon_name": "Mammalia"
                     }]
                 }))
@@ -655,9 +674,9 @@ async fn subspecies_rollup_enriches_new_species_and_respects_geozones() {
             "/gbif/species/match",
             get(|| async {
                 axum::Json(json!({
-                    "usageKey": 5219416,
-                    "speciesKey": 5219416,
-                    "canonicalName": "Panthera tigris",
+                    "usageKey": 5219436,
+                    "speciesKey": 5219436,
+                    "canonicalName": "Panthera pardus",
                     "phylum": "Chordata",
                     "class": "Mammalia",
                     "order": "Carnivora",
@@ -667,11 +686,11 @@ async fn subspecies_rollup_enriches_new_species_and_respects_geozones() {
             }),
         )
         .route(
-            "/gbif/species/5219416/iucnRedListCategory",
+            "/gbif/species/5219436/iucnRedListCategory",
             get(|| async {
                 axum::Json(json!({
-                    "code": "EN",
-                    "category": "ENDANGERED"
+                    "code": "VU",
+                    "category": "VULNERABLE"
                 }))
             }),
         )
@@ -679,16 +698,16 @@ async fn subspecies_rollup_enriches_new_species_and_respects_geozones() {
             "/wikidata",
             get(|axum::extract::RawQuery(q): axum::extract::RawQuery| async move {
                 if q.unwrap_or_default().contains("wbsearchentities") {
-                    axum::Json(json!({ "search": [{ "id": "Q19939" }] }))
+                    axum::Json(json!({ "search": [{ "id": "Q34706" }] }))
                 } else {
                     axum::Json(json!({
                         "entities": {
-                            "Q19939": {
-                                "labels": { "es": { "value": "Tigre" } },
+                            "Q34706": {
+                                "labels": { "es": { "value": "Leopardo" } },
                                 "descriptions": { "es": { "value": "especie de mamífero félido" } },
                                 "claims": {
-                                    "P225": [{ "mainsnak": { "datavalue": { "value": "Panthera tigris" } } }],
-                                    "P2067": [{ "mainsnak": { "datavalue": { "value": { "amount": "+150", "unit": "http://www.wikidata.org/entity/Q11570" } } } }]
+                                    "P225": [{ "mainsnak": { "datavalue": { "value": "Panthera pardus" } } }],
+                                    "P2067": [{ "mainsnak": { "datavalue": { "value": { "amount": "+65", "unit": "http://www.wikidata.org/entity/Q11570" } } } }]
                                 }
                             }
                         }
@@ -709,17 +728,38 @@ async fn subspecies_rollup_enriches_new_species_and_respects_geozones() {
         wikidata_api_url: format!("http://{mock_addr}/wikidata"),
     };
 
+    let mock_leopard_cv = r#"{
+        "results": [{
+            "combined_score": 93.5,
+            "taxon": {
+                "id": 991234,
+                "name": "Panthera pardus orientalis",
+                "rank": "subspecies",
+                "rank_level": 5,
+                "iconic_taxon_name": "Mammalia",
+                "ancestors": [
+                    { "id": 41962, "name": "Panthera", "rank": "genus", "rank_level": 20 },
+                    { "id": 41963, "name": "Panthera pardus", "rank": "species", "rank_level": 10, "preferred_common_name": "Leopardo" }
+                ]
+            }
+        }]
+    }"#;
+
     let app = router(AppState {
         db: pool.clone(),
         http: reqwest::Client::new(),
         mods: mods.clone(),
-        vision: Arc::new(MockVisionClient::default_cached(0.35)),
+        vision: Arc::new(MockVisionClient::from_cached_json(
+            mock_leopard_cv,
+            None,
+            0.35,
+        )),
         taxonomy_endpoints: endpoints.clone(),
         max_moire_score: 0.35,
         enable_live_range_fallback: false,
     });
 
-    // 1. Inside nature_reserve outside zoo -> mints Wild Panthera tigris (EN -> Epic), records subspecies_label.
+    // 1. Inside nature_reserve outside zoo -> mints Wild Panthera pardus (VU -> Rare), records subspecies_label.
     let reserve_cid = format!("test-rollup-reserve-{}", Uuid::new_v4());
     let body_reserve = signed_capture_body(
         &reserve_cid,
@@ -749,30 +789,34 @@ async fn subspecies_rollup_enriches_new_species_and_respects_geozones() {
         .await
         .unwrap();
     let minted: CaptureUploadResponse = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(minted.identification.scientific_name, "Panthera tigris");
+    assert_eq!(minted.identification.scientific_name, "Panthera pardus");
     assert_eq!(
         minted.identification.subspecies_label.as_deref(),
-        Some("Panthera tigris tigris")
+        Some("Panthera pardus orientalis")
     );
     let card = minted.card.unwrap();
-    assert_eq!(card.scientific_name, "Panthera tigris");
+    assert_eq!(card.scientific_name, "Panthera pardus");
     assert_eq!(card.variant, CaptureVariant::Wild);
-    assert_eq!(card.rarity, biodex_core::taxonomy::Rarity::Epic);
+    assert_eq!(card.rarity, biodex_core::taxonomy::Rarity::Rare);
 
-    // Verify species_catalog cached it with is_core_almanac = FALSE and captures stored subspecies_label + geo_zone_id.
+    // Verify species_catalog cached it with is_core_almanac = FALSE, category = 'felines', and captures stored subspecies_label + geo_zone_id.
     let catalog_row = sqlx::query(
-        "SELECT average_mass_grams, iucn_status, is_core_almanac FROM species_catalog WHERE taxon_source = 'i_naturalist' AND taxon_external_id = 41967",
+        "SELECT average_mass_grams, iucn_status, category, is_core_almanac FROM species_catalog WHERE taxon_source = 'i_naturalist' AND taxon_external_id = 41963",
     )
     .fetch_one(&pool)
     .await
     .unwrap();
     assert_eq!(
         catalog_row.try_get::<i64, _>("average_mass_grams").unwrap(),
-        150_000
+        65_000
     );
     assert_eq!(
         catalog_row.try_get::<String, _>("iucn_status").unwrap(),
-        "EN"
+        "VU"
+    );
+    assert_eq!(
+        catalog_row.try_get::<String, _>("category").unwrap(),
+        "felines"
     );
     assert!(!catalog_row.try_get::<bool, _>("is_core_almanac").unwrap());
 
@@ -787,7 +831,7 @@ async fn subspecies_rollup_enriches_new_species_and_respects_geozones() {
             .try_get::<Option<String>, _>("subspecies_label")
             .unwrap()
             .as_deref(),
-        Some("Panthera tigris tigris")
+        Some("Panthera pardus orientalis")
     );
     assert!(
         cap_row
@@ -977,7 +1021,7 @@ async fn dev_mode_unlocks_collection_and_naturalista_endpoints_work() {
         .await
         .unwrap();
     let dev_list: AlmanacListResponse = serde_json::from_slice(&dev_bytes).unwrap();
-    assert!(dev_list.total_species >= 24);
+    assert!(dev_list.total_species >= 92);
     assert_eq!(dev_list.discovered_count, dev_list.total_species);
     assert!(dev_list.entries.iter().all(|e| {
         e.discovered && e.capture_count >= 1 && e.naturalista_url.starts_with("https://")

@@ -1,19 +1,4 @@
 [[entries]]
-taxon_id = { source = "i_naturalist", id = 49315 }
-scientific_name = "Octopus vulgaris"
-common_name = "Pulpo Común"
-phylum = "Mollusca"
-taxonomic_class = "Cephalopoda"
-average_mass_grams = 3000
-diet = "carnivore"
-habitat = "marine"
-defenses = ["ink", "camouflage"]
-iucn_status = "LC"
-category = "aquatic"
-summary = "Cefalópodo de extraordinaria inteligencia capaz de cambiar color y textura al instante y escapar tras una nube de tinta."
-region_hint = "Arrecifes rocosos y fondos costeros"
-
-[[entries]]
 taxon_id = { source = "i_naturalist", id = 39659 }
 scientific_name = "Chelonia mydas"
 common_name = "Tortuga Verde Marina"
@@ -27,3 +12,108 @@ iucn_status = "EN"
 category = "aquatic"
 summary = "Gran tortuga oceánica migratoria que mantiene saludables las praderas marinas y regresa a desovar a sus playas natales."
 region_hint = "Mares tropicales, praderas marinas y playas"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 39672 }
+scientific_name = "Eretmochelys imbricata"
+common_name = "Tortuga Carey"
+phylum = "Chordata"
+taxonomic_class = "Reptilia"
+average_mass_grams = 65000
+diet = "omnivore"
+habitat = "marine"
+defenses = ["shell_armor"]
+iucn_status = "CR"
+category = "aquatic"
+summary = "Tortuga arrecifal de pico estrecho especializada en alimentarse de esponjas marinas, vital para el equilibrio coralino."
+region_hint = "Arrecifes coralinos tropicales y Golfo de México"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 41521 }
+scientific_name = "Orcinus orca"
+common_name = "Orca"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 4500000
+diet = "carnivore"
+habitat = "marine"
+defenses = ["speed"]
+iucn_status = "UNKNOWN"
+category = "aquatic"
+summary = "El mayor delfínido y superdepredador oceánico; transmite dialectos acústicos y tácticas de caza entre generaciones."
+region_hint = "Todos los océanos, desde mares polares hasta costas templadas"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 41566 }
+scientific_name = "Megaptera novaeangliae"
+common_name = "Ballena Jorobada"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 30000000
+diet = "carnivore"
+habitat = "marine"
+defenses = ["speed"]
+iucn_status = "LC"
+category = "aquatic"
+summary = "Cetáceo barbado célebre por sus espectaculares saltos acrobáticos, redes de burbujas y cantos estacionales complejos."
+region_hint = "Océanos abiertos y zonas reproductivas del Pacífico mexicano"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 41482 }
+scientific_name = "Tursiops truncatus"
+common_name = "Delfín Nariz de Botella"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 280000
+diet = "carnivore"
+habitat = "marine"
+defenses = ["speed"]
+iucn_status = "LC"
+category = "aquatic"
+summary = "Delfín inteligente altamente sociable que navega y localiza peces mediante ecolocalización precisa."
+region_hint = "Bahías costeras, arrecifes y mares templados o tropicales"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 132688 }
+scientific_name = "Amphiprion ocellaris"
+common_name = "Pez Payaso Común"
+phylum = "Chordata"
+taxonomic_class = "Actinopterygii"
+average_mass_grams = 80
+diet = "omnivore"
+habitat = "marine"
+defenses = ["camouflage"]
+iucn_status = "LC"
+category = "aquatic"
+summary = "Pez arrecifal cubierto por una mucosa protectora que le permite vivir protegido entre los tentáculos urticantes de anémonas."
+region_hint = "Arrecifes coralinos y lagunas marinas tropicales"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 54540 }
+scientific_name = "Hippocampus erectus"
+common_name = "Caballito de Mar Rayado"
+phylum = "Chordata"
+taxonomic_class = "Actinopterygii"
+average_mass_grams = 25
+diet = "carnivore"
+habitat = "marine"
+defenses = ["camouflage", "shell_armor"]
+iucn_status = "VU"
+category = "aquatic"
+summary = "Pez óseo de cuerpo acorazado y cola prensil que se sujeta a sargazos y pastos marinos; el macho incuba las crías."
+region_hint = "Pastos marinos y manglares del Atlántico y Golfo de México"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 47280 }
+scientific_name = "Pterois volitans"
+common_name = "Pez León Rojo"
+phylum = "Chordata"
+taxonomic_class = "Actinopterygii"
+average_mass_grams = 1100
+diet = "carnivore"
+habitat = "marine"
+defenses = ["venom", "spines"]
+iucn_status = "LC"
+category = "aquatic"
+summary = "Pez depredador vistoso armado con radios dorsales venenosos en abanico que acorrala peces pequeños en arrecifes."
+region_hint = "Arrecifes coralinos e islotes costeros"

@@ -341,8 +341,8 @@ fun LoginScreen(
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
-                        label = { Text("URL del backend (Puerto 3000)") },
-                        placeholder = { Text("http://127.0.0.1:3000") },
+                        label = { Text("URL del backend (Puerto 3030)") },
+                        placeholder = { Text("http://127.0.0.1:3030") },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedContainerColor = BioDexColors.SurfaceElevated,
                             unfocusedContainerColor = BioDexColors.SurfaceElevated,

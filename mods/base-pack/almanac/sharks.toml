@@ -1,0 +1,119 @@
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 50873 }
+scientific_name = "Carcharodon carcharias"
+common_name = "Tiburón Blanco"
+phylum = "Chordata"
+taxonomic_class = "Chondrichthyes"
+average_mass_grams = 1100000
+diet = "carnivore"
+habitat = "marine"
+defenses = ["speed"]
+iucn_status = "VU"
+category = "sharks"
+summary = "Superdepredador oceánico capaz de conservar calor muscular y detectar campos eléctricos débiles mediante ampollas de Lorenzini."
+region_hint = "Mares templados y costeros oceánicos"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 52188 }
+scientific_name = "Rhincodon typus"
+common_name = "Tiburón Ballena"
+phylum = "Chordata"
+taxonomic_class = "Chondrichthyes"
+average_mass_grams = 18000000
+diet = "omnivore"
+habitat = "marine"
+defenses = ["shell_armor"]
+iucn_status = "EN"
+category = "sharks"
+summary = "El pez más grande del planeta; filtrador pacífico de plancton con patrón de lunares irrepetible en cada individuo."
+region_hint = "Mares tropicales cálidos y Caribe mexicano"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 52299 }
+scientific_name = "Galeocerdo cuvier"
+common_name = "Tiburón Tigre"
+phylum = "Chordata"
+taxonomic_class = "Chondrichthyes"
+average_mass_grams = 520000
+diet = "carnivore"
+habitat = "marine"
+defenses = ["speed", "camouflage"]
+iucn_status = "NT"
+category = "sharks"
+summary = "Escuálido robusto de franjas oscuras juveniles y dentadura aserrada capaz de triturar caparazones de tortuga marina."
+region_hint = "Aguas tropicales, arrecifes y plataformas costeras"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 84996 }
+scientific_name = "Carcharhinus leucas"
+common_name = "Tiburón Toro"
+phylum = "Chordata"
+taxonomic_class = "Chondrichthyes"
+average_mass_grams = 180000
+diet = "carnivore"
+habitat = "marine"
+defenses = ["speed"]
+iucn_status = "VU"
+category = "sharks"
+summary = "Escuálido eurihalino que regula su osmorrecepción para remontar estuarios y ríos de agua dulce desde el mar."
+region_hint = "Costas tropicales, Golfo de México y desembocaduras"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 56764 }
+scientific_name = "Sphyrna lewini"
+common_name = "Tiburón Martillo Común"
+phylum = "Chordata"
+taxonomic_class = "Chondrichthyes"
+average_mass_grams = 80000
+diet = "carnivore"
+habitat = "marine"
+defenses = ["speed"]
+iucn_status = "CR"
+category = "sharks"
+summary = "Tiburón pelágico cuya cabeza en forma de martillo amplía el campo visual estereoscópico y los electrorreceptores."
+region_hint = "Mares tropicales, islas oceánicas y costas"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 69677 }
+scientific_name = "Isurus oxyrinchus"
+common_name = "Tiburón Mako"
+phylum = "Chordata"
+taxonomic_class = "Chondrichthyes"
+average_mass_grams = 250000
+diet = "carnivore"
+habitat = "marine"
+defenses = ["speed"]
+iucn_status = "EN"
+category = "sharks"
+summary = "El tiburón más veloz del océano; su cuerpo hidrodinámico y sangre tibia le permiten alcanzar ráfagas superiores a 70 km/h."
+region_hint = "Mar abierto templado y tropical"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 49964 }
+scientific_name = "Ginglymostoma cirratum"
+common_name = "Tiburón Gata"
+phylum = "Chordata"
+taxonomic_class = "Chondrichthyes"
+average_mass_grams = 110000
+diet = "carnivore"
+habitat = "marine"
+defenses = ["camouflage"]
+iucn_status = "VU"
+category = "sharks"
+summary = "Tiburón bentónico de hábitos tranquilos que succiona crustáceos y moluscos del lecho arrecifal mediante barbillones táctiles."
+region_hint = "Arrecifes coralinos y fondos arenosos costeros"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 623966 }
+scientific_name = "Mobula birostris"
+common_name = "Mantarraya Gigante"
+phylum = "Chordata"
+taxonomic_class = "Chondrichthyes"
+average_mass_grams = 1400000
+diet = "omnivore"
+habitat = "marine"
+defenses = ["speed"]
+iucn_status = "EN"
+category = "sharks"
+summary = "Elasmobranquio pelágico de hasta 7 metros de envergadura que filtra zooplancton planeando grácilmente en el océano."
+region_hint = "Aguas oceánicas tropicales y subtropicales"

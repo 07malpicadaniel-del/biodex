@@ -351,7 +351,7 @@ fun ProfileScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = "Conexión al Servidor (Puerto 3000)",
+                        text = "Conexión al Servidor (Puerto 3030)",
                         style = MaterialTheme.typography.titleMedium,
                         color = BioDexColors.TextPrimary,
                         fontWeight = FontWeight.Bold,
@@ -382,7 +382,7 @@ fun ProfileScreen(
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
                     label = { Text("URL personalizada (opcional)") },
-                    placeholder = { Text("http://192.168.1.100:3000") },
+                    placeholder = { Text("http://192.168.1.100:3030") },
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedContainerColor = BioDexColors.SurfaceElevated,
                         unfocusedContainerColor = BioDexColors.SurfaceElevated,

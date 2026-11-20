@@ -1,0 +1,119 @@
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 43411 }
+scientific_name = "Ateles geoffroyi"
+common_name = "Mono Araña Centroamericano"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 7500
+diet = "herbivore"
+habitat = "terrestrial"
+defenses = ["speed"]
+iucn_status = "EN"
+category = "primates"
+summary = "Primate neotropical de extremidades largas y cola prensil que actúa como quinta extremidad al desplazarse por el dosel."
+region_hint = "Selvas altas y medianas del sureste mexicano"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 43436 }
+scientific_name = "Alouatta palliata"
+common_name = "Mono Aullador de Manto"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 6500
+diet = "herbivore"
+habitat = "terrestrial"
+defenses = ["camouflage"]
+iucn_status = "VU"
+category = "primates"
+summary = "Primate folívoro cuyo hueso hioides agrandado amplifica vocalizaciones graves audibles a varios kilómetros."
+region_hint = "Selvas húmedas de Veracruz, Oaxaca y Chiapas"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 43577 }
+scientific_name = "Pan troglodytes"
+common_name = "Chimpancé"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 48000
+diet = "omnivore"
+habitat = "terrestrial"
+defenses = ["speed"]
+iucn_status = "EN"
+category = "primates"
+summary = "Homínido africano de elevada inteligencia social capaz de fabricar herramientas simples y cooperar en grupo."
+region_hint = "Bosques tropicales y sabanas arboladas de África"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 43580 }
+scientific_name = "Gorilla gorilla"
+common_name = "Gorila Occidental"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 155000
+diet = "herbivore"
+habitat = "terrestrial"
+defenses = ["spines"]
+iucn_status = "CR"
+category = "primates"
+summary = "El primate vivo de mayor masa; forma grupos familiares pacíficos encabezados por un macho espalda plateada."
+region_hint = "Selvas húmedas de África ecuatorial"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 43582 }
+scientific_name = "Pongo pygmaeus"
+common_name = "Orangután de Borneo"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 65000
+diet = "herbivore"
+habitat = "terrestrial"
+defenses = ["camouflage"]
+iucn_status = "CR"
+category = "primates"
+summary = "El mayor primate arborícola del mundo; construye nidos diarios en lo alto de los árboles y posee amplia memoria espacial."
+region_hint = "Selvas tropicales de Borneo"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 43617 }
+scientific_name = "Lemur catta"
+common_name = "Lémur de Cola Anillada"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 2200
+diet = "omnivore"
+habitat = "terrestrial"
+defenses = ["speed"]
+iucn_status = "EN"
+category = "primates"
+summary = "Prosimio endémico de Madagascar reconocible por su larga cola anillada en blanco y negro que mantiene al grupo unido."
+region_hint = "Bosques secos y matorrales espinosos de Madagascar"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 43458 }
+scientific_name = "Macaca fuscata"
+common_name = "Macaco Japonés"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 10000
+diet = "omnivore"
+habitat = "terrestrial"
+defenses = ["speed"]
+iucn_status = "LC"
+category = "primates"
+summary = "El primate no humano que habita latitudes más frías, famoso por bañarse en aguas termales durante el invierno."
+region_hint = "Bosques montanos y costas del archipiélago japonés"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 43533 }
+scientific_name = "Mandrillus sphinx"
+common_name = "Mandril"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 24000
+diet = "omnivore"
+habitat = "terrestrial"
+defenses = ["speed"]
+iucn_status = "VU"
+category = "primates"
+summary = "El mono no homínido más grande y colorido, distinguido por sus crestas nasales azul y escarlata en machos adultos."
+region_hint = "Selvas lluviosas ecuatoriales de África central"

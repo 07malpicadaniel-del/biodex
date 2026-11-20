@@ -1,0 +1,119 @@
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 47144 }
+scientific_name = "Canis familiaris"
+common_name = "Perro Doméstico"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 18000
+diet = "omnivore"
+habitat = "terrestrial"
+defenses = ["speed"]
+iucn_status = "LC"
+category = "canids"
+summary = "Cánido social con agudo sentido del olfato y oído, compañero histórico del ser humano en todo el planeta."
+region_hint = "Entornos domésticos y parques"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 42069 }
+scientific_name = "Vulpes vulpes"
+common_name = "Zorro Rojo"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 6500
+diet = "omnivore"
+habitat = "terrestrial"
+defenses = ["speed", "camouflage"]
+iucn_status = "LC"
+category = "canids"
+summary = "Cánido solitario y astuto que combina gran audición y agilidad para prosperar en bosques, praderas y linderos."
+region_hint = "Bosques, praderas y zonas rurales"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 42048 }
+scientific_name = "Canis lupus"
+common_name = "Lobo Gris"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 40000
+diet = "carnivore"
+habitat = "terrestrial"
+defenses = ["speed"]
+iucn_status = "LC"
+category = "canids"
+summary = "El mayor cánido silvestre; caza en manadas coordinadas y se comunica mediante complejos aullidos a kilómetros."
+region_hint = "Bosques templados, montañas y tundras"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 42051 }
+scientific_name = "Canis latrans"
+common_name = "Coyote"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 14000
+diet = "omnivore"
+habitat = "terrestrial"
+defenses = ["speed", "camouflage"]
+iucn_status = "LC"
+category = "canids"
+summary = "Cánido norteamericano sumamente adaptable de trote incansable, capaz de cazar en solitario o en pareja."
+region_hint = "Matorrales, pastizales, bosques y zonas periurbanas"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 42076 }
+scientific_name = "Urocyon cinereoargenteus"
+common_name = "Zorro Gris"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 4500
+diet = "omnivore"
+habitat = "terrestrial"
+defenses = ["camouflage", "speed"]
+iucn_status = "LC"
+category = "canids"
+summary = "Único cánido americano con capacidad notable para trepar troncos de árboles mediante garras semicurvas."
+region_hint = "Bosques de encino, selvas secas y barrancas de México"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 233598 }
+scientific_name = "Vulpes lagopus"
+common_name = "Zorro Ártico"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 3800
+diet = "carnivore"
+habitat = "terrestrial"
+defenses = ["camouflage"]
+iucn_status = "LC"
+category = "canids"
+summary = "Pequeño zorro polar cuyo pelaje denso muda de blanco invernal a pardo estival para camuflarse en la tundra."
+region_hint = "Tundra ártica y costas polares"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 42093 }
+scientific_name = "Lycaon pictus"
+common_name = "Licaón"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 25000
+diet = "carnivore"
+habitat = "terrestrial"
+defenses = ["speed"]
+iucn_status = "EN"
+category = "canids"
+summary = "Cánido africano de pelaje moteado único en cada individuo, reconocido por su altísima tasa de éxito en caza cooperativa."
+region_hint = "Sabanas y matorrales del África subsahariana"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 42091 }
+scientific_name = "Chrysocyon brachyurus"
+common_name = "Lobo de Crin"
+phylum = "Chordata"
+taxonomic_class = "Mammalia"
+average_mass_grams = 23000
+diet = "omnivore"
+habitat = "terrestrial"
+defenses = ["speed"]
+iucn_status = "NT"
+category = "canids"
+summary = "El cánido más alto de Sudamérica; sus zancudas patas rojizas le permiten ver por encima de altos pastizales."
+region_hint = "Pastizales húmedos y sabanas sudamericanas"

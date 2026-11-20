@@ -61,15 +61,25 @@ pub struct ModManifest {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AlmanacCategory {
+    /// Dogs, wolves, foxes, coyotes, and wild canids (`Canidae`).
+    Canids,
+    /// Cats, jaguars, tigers, lions, pumas, and wild felids (`Felidae`).
+    Felines,
+    /// Monkeys, apes, lemurs, and other primates (`Primates`).
+    Primates,
+    /// Other terrestrial and semi-aquatic mammals (`Mammalia`).
+    Mammals,
     /// Birds (`Aves`).
     Birds,
-    /// Mammals (`Mammalia`).
-    Mammals,
     /// Reptiles and amphibians (`Reptilia`, `Amphibia`).
     ReptilesAmphibians,
-    /// Insects and arachnids (`Insecta`, `Arachnida`).
+    /// Sharks, rays, and cartilaginous fishes (`Chondrichthyes`).
+    Sharks,
+    /// Marine and terrestrial non-insect invertebrates (cephalopods, crustaceans, arachnids, cnidarians, echinoderms, mollusks).
+    Invertebrates,
+    /// Insects (`Insecta`).
     InsectsArachnids,
-    /// Marine and freshwater aquatic fauna.
+    /// Marine mammals, sea turtles, and bony fishes (`Aquatic`).
     Aquatic,
 }
 
@@ -78,9 +88,14 @@ impl AlmanacCategory {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::Birds => "birds",
+            Self::Canids => "canids",
+            Self::Felines => "felines",
+            Self::Primates => "primates",
             Self::Mammals => "mammals",
+            Self::Birds => "birds",
             Self::ReptilesAmphibians => "reptiles_amphibians",
+            Self::Sharks => "sharks",
+            Self::Invertebrates => "invertebrates",
             Self::InsectsArachnids => "insects_arachnids",
             Self::Aquatic => "aquatic",
         }
@@ -781,18 +796,36 @@ display_name_override = "Kraken del Golfo"
     }
 
     #[test]
-    fn loads_all_24_basic_almanac_species_from_base_pack() {
+    fn loads_curated_almanac_species_across_all_clades_from_base_pack() {
         let pack_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../mods/base-pack");
         let mut registry = ModRegistry::new();
         registry.load_dir(&pack_dir).unwrap();
 
         let entries = registry.almanac_entries();
-        assert_eq!(entries.len(), 24);
+        assert_eq!(entries.len(), 92);
 
         for entry in &entries {
             let card = generate_card(&entry.traits, CaptureVariant::Wild).unwrap();
             assert!((1..=10).contains(&card.deploy_cost));
             assert!(!entry.summary.is_empty());
+        }
+
+        for expected_cat in [
+            AlmanacCategory::Canids,
+            AlmanacCategory::Felines,
+            AlmanacCategory::Primates,
+            AlmanacCategory::Mammals,
+            AlmanacCategory::Birds,
+            AlmanacCategory::ReptilesAmphibians,
+            AlmanacCategory::Sharks,
+            AlmanacCategory::Invertebrates,
+            AlmanacCategory::InsectsArachnids,
+            AlmanacCategory::Aquatic,
+        ] {
+            assert!(
+                entries.iter().any(|e| e.category == expected_cat),
+                "missing category {expected_cat:?} in base-pack"
+            );
         }
 
         assert!(

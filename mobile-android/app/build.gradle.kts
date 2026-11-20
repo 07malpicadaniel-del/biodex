@@ -25,8 +25,8 @@ fun detectLocalLanApiUrl(): String {
                 ip.startsWith("192.168.") || ip.startsWith("10.")
             }
             ?.hostAddress
-            ?.let { "http://$it:3000" }
-    }.getOrNull() ?: "http://127.0.0.1:3000"
+            ?.let { "http://$it:3030" }
+    }.getOrNull() ?: "http://127.0.0.1:3030"
 }
 
 val debugLanApiUrl = detectLocalLanApiUrl()
@@ -43,7 +43,7 @@ android {
         versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        buildConfigField("String", "API_BASE_URL", "\"http://127.0.0.1:3000\"")
+        buildConfigField("String", "API_BASE_URL", "\"http://127.0.0.1:3030\"")
         buildConfigField("String", "DEBUG_LAN_API_URL", "\"$debugLanApiUrl\"")
     }
 

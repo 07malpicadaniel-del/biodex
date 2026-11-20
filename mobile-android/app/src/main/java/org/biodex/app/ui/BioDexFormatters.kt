@@ -34,6 +34,20 @@ internal object BioDexFormatters {
         else -> "UICN N/D"
     }
 
+    fun categoryLabelEs(category: String): String = when (category.lowercase()) {
+        "canids" -> "Cánidos"
+        "felines" -> "Felinos"
+        "primates" -> "Primates"
+        "sharks" -> "Escuálidos"
+        "invertebrates" -> "Invertebrados"
+        "mammals" -> "Mamíferos"
+        "birds" -> "Aves"
+        "reptiles_amphibians" -> "Reptiles y Anfibios"
+        "insects_arachnids" -> "Insectos"
+        "aquatic" -> "Acuáticos"
+        else -> category
+    }
+
     fun habitatLabelEs(habitat: String): String = when (habitat.lowercase()) {
         "aerial" -> "Aéreo"
         "terrestrial" -> "Terrestre"

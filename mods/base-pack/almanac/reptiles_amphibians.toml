@@ -72,3 +72,63 @@ iucn_status = "LC"
 category = "reptiles_amphibians"
 summary = "Anfibio robusto de potente canto grave que embosca presas en orillas de lagos, estanques y pantanos."
 region_hint = "Estanques, lagunas y humedales"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 35303 }
+scientific_name = "Ctenosaura similis"
+common_name = "Iguana Negra de Cola Espinosa"
+phylum = "Chordata"
+taxonomic_class = "Reptilia"
+average_mass_grams = 1800
+diet = "omnivore"
+habitat = "terrestrial"
+defenses = ["speed", "spines"]
+iucn_status = "LC"
+category = "reptiles_amphibians"
+summary = "Lagarto terrestre y rupícola sumamente veloz que defiende su madriguera azotando su cola cubierta de escamas espinosas."
+region_hint = "Costas rocosas, bardas y selvas bajas de México"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 26074 }
+scientific_name = "Crocodylus moreletii"
+common_name = "Cocodrilo de Pantano"
+phylum = "Chordata"
+taxonomic_class = "Reptilia"
+average_mass_grams = 75000
+diet = "carnivore"
+habitat = "freshwater"
+defenses = ["shell_armor", "camouflage"]
+iucn_status = "LC"
+category = "reptiles_amphibians"
+summary = "Cocodriliano dulceacuícola de hocico ancho nativo del Golfo de México que resguarda activamente sus nidos en tulares."
+region_hint = "Lagunas, manglares y pantanos de Veracruz y Tabasco"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 30764 }
+scientific_name = "Crotalus atrox"
+common_name = "Víbora de Cascabel Diamante"
+phylum = "Chordata"
+taxonomic_class = "Reptilia"
+average_mass_grams = 2400
+diet = "carnivore"
+habitat = "terrestrial"
+defenses = ["venom", "camouflage"]
+iucn_status = "LC"
+category = "reptiles_amphibians"
+summary = "Crótalo robusto con fosetas termorreceptoras infrarrojas que advierte su presencia haciendo vibrar el cascabel caudal."
+region_hint = "Matorrales xerófilos, cañadas y zonas áridas"
+
+[[entries]]
+taxon_id = { source = "i_naturalist", id = 21141 }
+scientific_name = "Dendrobates tinctorius"
+common_name = "Rana Dardo Venenosa"
+phylum = "Chordata"
+taxonomic_class = "Amphibia"
+average_mass_grams = 8
+diet = "carnivore"
+habitat = "terrestrial"
+defenses = ["venom"]
+iucn_status = "LC"
+category = "reptiles_amphibians"
+summary = "Pequeño anfibio diurno de brillantes colores aposemáticos que secuestra alcaloides tóxicos de hormigas y ácaros silvestres."
+region_hint = "Suelos húmedos de selvas tropicales"

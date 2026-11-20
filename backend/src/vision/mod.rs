@@ -668,7 +668,13 @@ pub async fn resolve_species_profile(
         );
     }
 
-    let category = infer_almanac_category(&traits.taxonomic_class, traits.habitat);
+    let category = infer_almanac_category(
+        &traits.phylum,
+        &traits.taxonomic_class,
+        order_hint.as_deref(),
+        family_hint.as_deref(),
+        traits.habitat,
+    );
     cache_traits(pool, &traits, &summary, category, &media).await?;
     Ok(ResolvedSpeciesProfile { traits, media })
 }
@@ -1399,12 +1405,19 @@ fn infer_defaults_from_taxonomy(
             Diet::Carnivore,
             40,
         ),
-        "Actinopterygii" | "Chondrichthyes" => (
+        "Actinopterygii" => (
             "Chordata",
             "Actinopterygii",
             Habitat::Marine,
             Diet::Carnivore,
             1_500,
+        ),
+        "Chondrichthyes" | "Elasmobranchii" => (
+            "Chordata",
+            "Chondrichthyes",
+            Habitat::Marine,
+            Diet::Carnivore,
+            45_000,
         ),
         "Insecta" => (
             "Arthropoda",
@@ -1522,7 +1535,41 @@ fn infer_defaults_from_taxonomy(
     }
 }
 
-pub(crate) fn infer_almanac_category(taxonomic_class: &str, habitat: Habitat) -> &'static str {
+pub(crate) fn infer_almanac_category(
+    phylum: &str,
+    taxonomic_class: &str,
+    order: Option<&str>,
+    family: Option<&str>,
+    habitat: Habitat,
+) -> &'static str {
+    if family == Some("Canidae") {
+        return "canids";
+    }
+    if family == Some("Felidae") {
+        return "felines";
+    }
+    if order == Some("Primates") {
+        return "primates";
+    }
+    if matches!(taxonomic_class, "Chondrichthyes" | "Elasmobranchii") {
+        return "sharks";
+    }
+    if taxonomic_class == "Insecta" {
+        return "insects_arachnids";
+    }
+    if matches!(
+        taxonomic_class,
+        "Arachnida"
+            | "Cephalopoda"
+            | "Gastropoda"
+            | "Bivalvia"
+            | "Malacostraca"
+            | "Scyphozoa"
+            | "Echinoidea"
+    ) || matches!(phylum, "Mollusca" | "Cnidaria" | "Echinodermata")
+    {
+        return "invertebrates";
+    }
     if matches!(habitat, Habitat::Marine | Habitat::Abyssal)
         && !matches!(taxonomic_class, "Aves" | "Reptilia")
     {
@@ -1532,7 +1579,6 @@ pub(crate) fn infer_almanac_category(taxonomic_class: &str, habitat: Habitat) ->
         "Aves" => "birds",
         "Mammalia" => "mammals",
         "Reptilia" | "Amphibia" => "reptiles_amphibians",
-        "Insecta" | "Arachnida" => "insects_arachnids",
         _ => "aquatic",
     }
 }
